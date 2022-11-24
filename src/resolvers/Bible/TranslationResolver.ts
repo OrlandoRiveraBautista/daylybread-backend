@@ -7,13 +7,12 @@ export class TranslationResolver {
   // Get all of the bible translations
   @Query(() => [Translation])
   async getTranslations(@Ctx() { em }: MyContext): Promise<Translation[]> {
-    const repo = em.getCollection(Translation);
-    console.log(repo);
     const s = await em.find(
       Translation,
       {},
       { populate: ["_id", "name", "abbreviation", "lang", "language"] }
     );
+    console.log(s);
     return s;
   }
 

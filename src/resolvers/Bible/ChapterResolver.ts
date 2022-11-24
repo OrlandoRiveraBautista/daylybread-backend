@@ -93,7 +93,6 @@ export class ChapterResolver {
         },
       },
     ]);
-    console.log(await trying.toArray());
 
     const results = em.find(Chapter, {
       bibleId: "KJV03022",

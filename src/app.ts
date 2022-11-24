@@ -16,6 +16,7 @@ import {
   MikroORM,
 } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
+import cors from "@fastify/cors";
 import { __prod__ } from "./constants";
 
 /** App class */
@@ -44,7 +45,7 @@ class App {
     this.port = appInit.port;
 
     // setting resolvers
-    this.resolvers = appInit.resolvers
+    this.resolvers = appInit.resolvers;
 
     // mikro orm's mongodb configure
     this.mikroConfig = {
@@ -58,7 +59,7 @@ class App {
       clientUrl: process.env.MONGODBCLIENTURL,
       debug: true,
       implicitTransactions: true,
-    } 
+    };
   }
 
   // function to start app
@@ -87,7 +88,9 @@ class App {
     await this.apolloServer.start();
 
     // Register ApolloServer to the fastify app
-    this.app.register(this.apolloServer.createHandler());
+    this.app.register(this.apolloServer.createHandler()).register(cors, {
+      origin: "http://localhost:8100",
+    });
 
     // try to initiate app
     try {

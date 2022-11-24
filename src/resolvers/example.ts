@@ -12,8 +12,6 @@ export class ExampleResolver {
   // Get all of the test data
   @Query(() => [Test])
   async getTestData(@Ctx() { em }: MyContext): Promise<Test[]> {
-    const repo = em.getCollection(Test);
-    console.log(repo);
     const s = await em.find(Test, {});
     return s;
   }
