@@ -94,6 +94,8 @@ export class ChapterResolver {
       },
     ]);
 
+    console.log(trying);
+
     const results = em.find(Chapter, {
       bibleId: "KJV03022",
     });
