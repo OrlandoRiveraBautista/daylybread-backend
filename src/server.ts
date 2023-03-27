@@ -17,7 +17,7 @@ dotenv.config();
 
 const server = async () => {
   const app = new App({
-    port: 5001,
+    port: process.env.PORT ? Number.parseInt(process.env.PORT) : 5001,
     entities: [Translation, Book, Chapter, Verse, Test],
     resolvers: [
       ExampleResolver,
