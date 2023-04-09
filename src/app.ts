@@ -89,7 +89,11 @@ class App {
 
     // Register ApolloServer to the fastify app
     this.app.register(this.apolloServer.createHandler()).register(cors, {
-      origin: "http://localhost:8100",
+      origin: [
+        "http://localhost:8100",
+        "http://localhost:3000",
+        "https://daylybread-marketr.web.app/",
+      ],
     });
 
     // try to initiate app
