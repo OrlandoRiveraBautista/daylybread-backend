@@ -10,6 +10,7 @@ import { Chapter } from "./entities/Bible/Chapter";
 import { ChapterResolver } from "./resolvers/Bible/ChapterResolver";
 import { Verse } from "./entities/Bible/Verse";
 import { VerseResolver } from "./resolvers/Bible/VerseResolver";
+import { OpenAiTest } from "./resolvers/OpenAI/test";
 
 /** Controllers */
 
@@ -25,6 +26,7 @@ const server = async () => {
       BookResolver,
       ChapterResolver,
       VerseResolver,
+      OpenAiTest,
     ],
   });
 

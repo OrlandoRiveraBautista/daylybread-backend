@@ -22,6 +22,8 @@
     "dotenv": "^16.0.1",
     "fastify": "^3.29.3",
     "graphql": "^15.3.0",
+    "langchain": "^0.0.66",
+    "openai": "^3.2.1",
     "reflect-metadata": "^0.1.13",
     "type-graphql": "^1.1.1"
   },
