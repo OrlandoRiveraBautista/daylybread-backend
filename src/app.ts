@@ -17,6 +17,16 @@ import {
 } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
 import cors from "@fastify/cors";
+import { OpenAI } from "langchain/llms/openai";
+import { ChatOpenAI } from "langchain/chat_models/openai";
+import {
+  ChatPromptTemplate,
+  HumanMessagePromptTemplate,
+  MessagesPlaceholder,
+  SystemMessagePromptTemplate,
+} from "langchain/prompts";
+import { ConversationChain } from "langchain/chains";
+import { BufferWindowMemory } from "langchain/memory";
 import { __prod__ } from "./constants";
 
 /** App class */
@@ -68,6 +78,30 @@ class App {
     const orm = await MikroORM.init<MongoDriver>(this.mikroConfig);
     orm.getSchemaGenerator().createSchema();
 
+    // Open AI configuration
+    const openai = new OpenAI({ openAIApiKey: process.env.OPENAI_API_KEY });
+    const chatgpt = new ChatOpenAI({ temperature: 0 });
+
+    // Chat prompt template
+    const chatPrompt = ChatPromptTemplate.fromPromptMessages([
+      SystemMessagePromptTemplate.fromTemplate(
+        "The following is a friendly conversation between a human and an AI (named BreadCrumbs). The AI is talkative and provides lots of specific details from the bible, KJV in english and RVR in spanish . If the AI does not know the answer to a question, it truthfully says it does not know."
+      ),
+      new MessagesPlaceholder("history"),
+      HumanMessagePromptTemplate.fromTemplate("{input}"),
+    ]);
+
+    // Conversation chain init
+    const chain = new ConversationChain({
+      memory: new BufferWindowMemory({
+        returnMessages: true,
+        memoryKey: "history",
+        k: 5,
+      }),
+      prompt: chatPrompt,
+      llm: chatgpt,
+    });
+
     // configure instace of ApolloServer
     this.apolloServer = new ApolloServer({
       schema: await buildSchema({
@@ -81,7 +115,7 @@ class App {
         ApolloServerPluginDrainHttpServer({ httpServer: this.app.server }),
         ApolloServerPluginLandingPageLocalDefault({ embed: true }),
       ],
-      context: () => ({ em: orm.em.fork() }), // need to use a fork of em
+      context: () => ({ em: orm.em.fork(), openai: openai, chatgpt: chain }), // need to use a fork of em
     });
 
     // start ApolloServer
