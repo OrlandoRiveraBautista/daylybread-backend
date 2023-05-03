@@ -85,7 +85,7 @@ class App {
     // Chat prompt template
     const chatPrompt = ChatPromptTemplate.fromPromptMessages([
       SystemMessagePromptTemplate.fromTemplate(
-        "The following is a friendly conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know."
+        "The following is a friendly conversation between a human and an AI (named BreadCrumbs). The AI is talkative and provides lots of specific details from the bible, KJV in english and RVR in spanish . If the AI does not know the answer to a question, it truthfully says it does not know."
       ),
       new MessagesPlaceholder("history"),
       HumanMessagePromptTemplate.fromTemplate("{input}"),
