@@ -3,7 +3,7 @@ import { MyContext } from "src/types";
 import { FieldError } from "src/entities/Errors/FieldError";
 
 @Resolver()
-export class OpenAiTest {
+export class OpenAiTestResolver {
   @Query(() => String)
   async getOpen(
     @Arg("promptText", () => String) promptText: string | undefined,
