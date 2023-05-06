@@ -14,6 +14,8 @@ export class OpenAiTestResolver {
     console.log("Prompt Text:");
     console.log(promptText);
 
+    console.log(chatgpt);
+
     // call ai with prompt text
     const response = await chatgpt.call({
       input: promptText,
