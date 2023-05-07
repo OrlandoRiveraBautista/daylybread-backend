@@ -29,3 +29,9 @@ export class Test {
   @Property({ fieldName: "ip_address" })
   ipAddress!: string;
 }
+
+@ObjectType()
+export class BreadCrumbsResponse {
+  @Field(() => String)
+  response: string;
+}
