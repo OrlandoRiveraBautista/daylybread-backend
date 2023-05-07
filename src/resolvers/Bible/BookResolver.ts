@@ -11,7 +11,7 @@ export class BookResolver {
   @Query(() => [TranslationBook])
   async getBooks(
     @Arg("translationId", () => String) id: ObjectId,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, chatgpt }: MyContext
   ): Promise<TranslationBook[] | FieldError> {
     // find translation
     const results = await em.findOne(Translation, { _id: id });
@@ -25,6 +25,14 @@ export class BookResolver {
 
     // get books
     const books = results.books;
+
+    // call ai with prompt text
+    const response = await chatgpt.call({
+      input: "hello",
+    });
+
+    console.log("Response:");
+    console.log(response);
 
     return books;
   }
