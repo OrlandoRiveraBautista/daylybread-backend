@@ -1,15 +1,14 @@
 import { Resolver, Query, Arg, Ctx } from "type-graphql";
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { BreadCrumbsResponse } from "../../entities/Test";
 
 @Resolver()
 export class OpenAiTestResolver {
-  @Query(() => BreadCrumbsResponse)
+  @Query(() => String)
   async getOpen(
     @Arg("promptText", () => String) promptText: string | undefined,
     @Ctx() { chatgpt }: MyContext
-  ): Promise<BreadCrumbsResponse | FieldError | undefined> {
+  ): Promise<String | FieldError | undefined> {
     if (!promptText) return; // check to see if there is anything in the prompt
 
     console.log("Prompt Text:");
@@ -18,9 +17,20 @@ export class OpenAiTestResolver {
     console.log(chatgpt);
 
     // call ai with prompt text
-    const response = await chatgpt.call({
-      input: promptText,
-    });
+    let response;
+
+    try {
+      response = await chatgpt.call({
+        input: promptText,
+      });
+    } catch (e) {
+      const error: FieldError = {
+        message: e,
+      };
+      console.log("error");
+      console.log(e);
+      return error;
+    }
 
     console.log("Response:");
     console.log(response);
@@ -33,11 +43,7 @@ export class OpenAiTestResolver {
       return error;
     }
 
-    const res: BreadCrumbsResponse = {
-      response: response.response,
-    };
-
     // return response text
-    return res;
+    return response.response;
   }
 }
