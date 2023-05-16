@@ -11,11 +11,6 @@ export class OpenAiTestResolver {
   ): Promise<String | FieldError | undefined> {
     if (!promptText) return; // check to see if there is anything in the prompt
 
-    console.log("Prompt Text:");
-    console.log(promptText);
-
-    console.log(chatgpt);
-
     // call ai with prompt text
     let response;
 
@@ -27,13 +22,9 @@ export class OpenAiTestResolver {
       const error: FieldError = {
         message: e,
       };
-      console.log("error");
-      console.log(e);
+
       return error;
     }
-
-    console.log("Response:");
-    console.log(response);
 
     // check if there is a response, if not send error
     if (!response) {

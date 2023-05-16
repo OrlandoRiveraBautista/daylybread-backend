@@ -108,7 +108,6 @@ class App {
         resolvers: this.resolvers,
         validate: true,
       }),
-      introspection: true,
       csrfPrevention: true,
       cache: "bounded",
       plugins: [
