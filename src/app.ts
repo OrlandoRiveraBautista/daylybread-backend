@@ -7,6 +7,7 @@ import {
   ApolloServerPluginLandingPageLocalDefault,
 } from "apollo-server-core";
 import { ApolloServerPlugin } from "apollo-server-plugin-base";
+import cookie from "@fastify/cookie";
 import { buildSchema, NonEmptyArray } from "type-graphql";
 import {
   EntityClass,
@@ -16,7 +17,6 @@ import {
   MikroORM,
 } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
-import cors from "@fastify/cors";
 import { OpenAI } from "langchain/llms/openai";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 import {
@@ -80,7 +80,7 @@ class App {
 
     // Open AI configuration
     const openai = new OpenAI({ openAIApiKey: process.env.OPENAI_API_KEY });
-    const chatgpt = new ChatOpenAI({ temperature: 0 });
+    const chatgpt = new ChatOpenAI({ temperature: 0, streaming: true });
 
     // Chat prompt template
     const chatPrompt = ChatPromptTemplate.fromPromptMessages([
@@ -115,20 +115,39 @@ class App {
         ApolloServerPluginDrainHttpServer({ httpServer: this.app.server }),
         ApolloServerPluginLandingPageLocalDefault({ embed: true }),
       ],
-      context: () => ({ em: orm.em.fork(), openai: openai, chatgpt: chain }), // need to use a fork of em
+      context: ({ request, reply }) => ({
+        request,
+        reply,
+        em: orm.em.fork(), // need to use a fork of em
+        openai: openai,
+        chatgpt: chain,
+      }),
     });
 
     // start ApolloServer
     await this.apolloServer.start();
 
     // Register ApolloServer to the fastify app
-    this.app.register(this.apolloServer.createHandler()).register(cors, {
-      origin: [
-        "http://localhost:8100",
-        "http://localhost:3000",
-        "https://daylybread-marketr.web.app/",
-      ],
-    });
+    this.app
+      .register(
+        this.apolloServer.createHandler({
+          // the reason why the cors are added here and not with the @fastify.cors plugin is because
+          // that plugin caused overwriting issues
+          // this actually worked
+          cors: {
+            origin: [
+              "http://localhost:8100",
+              "http://localhost:3000",
+              "https://daylybread-marketr.web.app/",
+            ],
+            credentials: true,
+          },
+        })
+      )
+      .register(cookie, {
+        secret: "my-secret", //should be changed to an actual secret
+        parseOptions: {},
+      });
 
     // try to initiate app
     try {
