@@ -24,19 +24,19 @@ export class User {
   @Property()
   password!: string;
 
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
   @Property({ fieldName: "first_name", nullable: true })
   firstName?: string;
 
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
   @Property({ fieldName: "last_name", nullable: true })
   lastName?: string;
 
-  @Field(() => String)
+  @Field(() => String, { nullable: true })
   @Property({ nullable: true })
   gender?: string;
 
-  @Field(() => Number)
+  @Field(() => Number, { nullable: true })
   @Property()
   count?: number;
 }
