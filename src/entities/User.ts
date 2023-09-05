@@ -40,9 +40,9 @@ export class User {
   @Property({ nullable: true })
   dob?: Date;
 
-  @Field(() => Number, { nullable: true })
+  @Field(() => Number)
   @Property()
-  count?: number;
+  count: number;
 
   // we will store user images in another table
   // this table will reference the user by id and have the image url from s3 and have a default boolean field to specify the profile pic

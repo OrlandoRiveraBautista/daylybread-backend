@@ -63,6 +63,9 @@ export const ValidateUser = () => {
         expires: addTime({ date: new Date(), typeOfTime: "minutes", time: 15 }), //expires in 15mins
       });
 
+      // set user id to the request
+      request.userId = user._id;
+
       return next();
     }
   );
