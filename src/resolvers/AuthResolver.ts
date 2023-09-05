@@ -172,6 +172,33 @@ export class AuthResolver {
     return { user: newUser };
   }
 
+  /**
+   * This route can be used to invalidate all tokens in any browser
+   * Good use case is when a user has reset their password
+   */
+  @Mutation(() => Boolean)
+  async invalidateTokens(@Ctx() { em, request }: MyContext): Promise<boolean> {
+    // since I wil be using a non explicit value from request (userId)
+    // I will declare a local req as any
+    const req = request as any;
+
+    // check to see if the header was set from the middleware
+    if (!req.userId) {
+      return false;
+    }
+
+    const user = await em.findOne(User, { _id: req.userId });
+
+    if (!user) {
+      return false;
+    }
+
+    user.count += 1;
+    await em.persistAndFlush(user);
+
+    return true;
+  }
+
   // Get all of the test data
   // @Query(() => String)
   // async signup(@Ctx() { em }: MyContext) {
