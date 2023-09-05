@@ -12,7 +12,6 @@ export class TranslationResolver {
       {},
       { populate: ["_id", "name", "abbreviation", "lang", "language"] }
     );
-    console.log(s);
     return s;
   }
 
