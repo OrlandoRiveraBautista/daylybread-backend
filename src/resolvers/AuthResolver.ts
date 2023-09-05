@@ -199,6 +199,14 @@ export class AuthResolver {
     return true;
   }
 
+  @Query(() => Boolean)
+  async signout(@Ctx() { reply }: MyContext): Promise<boolean> {
+    reply.clearCookie("access-token");
+    reply.clearCookie("refresh-token");
+
+    return true;
+  }
+
   // Get all of the test data
   // @Query(() => String)
   // async signup(@Ctx() { em }: MyContext) {
