@@ -34,9 +34,16 @@ export class User {
 
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
-  gender?: string;
+  churchName?: string;
+
+  @Field(() => Date, { nullable: true })
+  @Property({ nullable: true })
+  dob?: Date;
 
   @Field(() => Number, { nullable: true })
   @Property()
   count?: number;
+
+  // we will store user images in another table
+  // this table will reference the user by id and have the image url from s3 and have a default boolean field to specify the profile pic
 }
