@@ -1,10 +1,11 @@
-import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
+import { Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
+import { User } from "./User";
 
 @Entity()
 @ObjectType()
-export class User {
+export class Bookmark {
   @Field(() => ID)
   @PrimaryKey()
   _id!: ObjectId;
@@ -17,32 +18,13 @@ export class User {
   @Property({ type: "date", onUpdate: () => new Date() })
   updatedAt? = new Date();
 
-  @Field(() => String)
-  @Property({ unique: true })
-  email!: string;
-
-  @Property()
-  password!: string;
-
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
-  firstName?: string;
+  note?: string;
 
-  @Field(() => String, { nullable: true })
-  @Property({ nullable: true })
-  lastName?: string;
-
-  @Field(() => String, { nullable: true })
-  @Property({ nullable: true })
-  churchName?: string;
-
-  @Field(() => Date, { nullable: true })
-  @Property({ nullable: true })
-  dob?: Date;
-
-  @Field(() => Number)
-  @Property()
-  count: number;
+  @Field(() => User)
+  @ManyToOne(() => User)
+  owner: User;
 
   // we will store user images in another table
   // this table will reference the user by id and have the image url from s3 and have a default boolean field to specify the profile pic
