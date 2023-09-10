@@ -24,7 +24,7 @@ export class Bookmark {
 
   @Field(() => User)
   @ManyToOne(() => User)
-  owner: User;
+  author: User;
 
   // we will store user images in another table
   // this table will reference the user by id and have the image url from s3 and have a default boolean field to specify the profile pic

@@ -1,6 +1,15 @@
-import { Entity, PrimaryKey, Property } from "@mikro-orm/core";
+import {
+  Collection,
+  Entity,
+  OneToMany,
+  PrimaryKey,
+  Property,
+} from "@mikro-orm/core";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
+
+/* Entities */
+import { Bookmark } from "./Bookmark";
 
 @Entity()
 @ObjectType()
@@ -43,6 +52,10 @@ export class User {
   @Field(() => Number)
   @Property()
   count: number;
+
+  @Field(() => [Bookmark], { nullable: true })
+  @OneToMany(() => Bookmark, (bookmark) => bookmark.author)
+  bookmarks = new Collection<Bookmark>(this);
 
   // we will store user images in another table
   // this table will reference the user by id and have the image url from s3 and have a default boolean field to specify the profile pic
