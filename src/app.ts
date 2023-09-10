@@ -80,7 +80,7 @@ class App {
 
     // Open AI configuration
     const openai = new OpenAI({ openAIApiKey: process.env.OPENAI_API_KEY });
-    const chatgpt = new ChatOpenAI({ temperature: 0, streaming: true });
+    const chatgpt = new ChatOpenAI({ temperature: 0 });
 
     // Chat prompt template
     const chatPrompt = ChatPromptTemplate.fromPromptMessages([
