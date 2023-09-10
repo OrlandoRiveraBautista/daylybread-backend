@@ -10,6 +10,10 @@ export class User {
   _id!: ObjectId;
 
   @Field(() => String)
+  @Property({ unique: true })
+  handle: string;
+
+  @Field(() => String)
   @Property({ type: "date" })
   createdAt? = new Date();
 
