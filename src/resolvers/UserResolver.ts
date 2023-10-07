@@ -1,40 +1,13 @@
-import {
-  Arg,
-  Ctx,
-  Field,
-  InputType,
-  Mutation,
-  Query,
-  Resolver,
-} from "type-graphql";
+import { Arg, Ctx, Mutation, Query, Resolver } from "type-graphql";
 
 /* Types */
 import { MyContext, UserResponse } from "../types";
 
 /* Entities */
-import { User } from "../entities/User";
+import { User, UserUpdateInput } from "../entities/User";
 
 /* Middlewares */
 import { ValidateUser } from "../middlewares/userAuth";
-
-/**
- * !Since this type is being used in an update route
- * !this potentially has to be centralized and generalized
- */
-@InputType()
-class RegisterUpdateUser {
-  @Field()
-  firstName: string;
-
-  @Field()
-  lastName: string;
-
-  @Field({ nullable: true })
-  churchName?: string;
-
-  @Field()
-  dob: Date;
-}
 
 @Resolver()
 export class UserResolver {
@@ -72,7 +45,7 @@ export class UserResolver {
   @ValidateUser()
   @Mutation(() => UserResponse)
   async updateUser(
-    @Arg("options", () => RegisterUpdateUser) options: RegisterUpdateUser,
+    @Arg("options", () => UserUpdateInput) options: UserUpdateInput,
     @Ctx() { em, request }: MyContext
   ): Promise<UserResponse | null> {
     // since I wil be using a non explicit value from request (userId)
