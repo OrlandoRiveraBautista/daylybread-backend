@@ -8,6 +8,7 @@ import { Test } from "./entities/Test";
 import { Book } from "./entities/Bible/Book";
 import { Chapter } from "./entities/Bible/Chapter";
 import { Verse } from "./entities/Bible/Verse";
+import { Bookmark } from "./entities/Bookmark";
 
 /* Resolvers */
 import { ExampleResolver } from "./resolvers/example";
@@ -18,13 +19,14 @@ import { VerseResolver } from "./resolvers/Bible/VerseResolver";
 import { OpenAiTestResolver } from "./resolvers/OpenAI/test";
 import { AuthResolver } from "./resolvers/AuthResolver";
 import { UserResolver } from "./resolvers/UserResolver";
+import { BookmarkResolver } from "./resolvers/BookmarkResolver";
 
 dotenv.config();
 
 const server = async () => {
   const app = new App({
     port: process.env.PORT ? Number.parseInt(process.env.PORT) : 5001,
-    entities: [User, Translation, Book, Chapter, Verse, Test],
+    entities: [User, Translation, Book, Chapter, Verse, Test, Bookmark],
     resolvers: [
       ExampleResolver,
       AuthResolver,
@@ -34,6 +36,7 @@ const server = async () => {
       VerseResolver,
       OpenAiTestResolver,
       UserResolver,
+      BookmarkResolver,
     ],
   });
 
