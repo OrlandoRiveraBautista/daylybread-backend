@@ -197,8 +197,6 @@ export class BookmarkResolver {
       throw err;
     }
 
-    console.log(chosenBookmark)
-
     return { results: chosenBookmark };
   }
 }
