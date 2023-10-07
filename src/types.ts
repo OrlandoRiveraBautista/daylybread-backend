@@ -7,6 +7,7 @@ import { InputType, Field, ObjectType } from "type-graphql";
 /* Entities */
 import { FieldError } from "./entities/Errors/FieldError";
 import { User } from "./entities/User";
+import { Bookmark } from "./entities/Bookmark";
 
 export type MyContext = {
   request: FastifyRequest;
@@ -34,4 +35,36 @@ export class UserResponse {
 
   @Field(() => User, { nullable: true })
   user?: User;
+}
+
+@ObjectType()
+export class BookmarkResponse {
+  /**
+   * !Maybe we can build a reusable object type for responses
+   */
+  // private objectType: any
+  // constructor(objectType: any) {
+  //   this.objectType = objectType
+  // }
+  @Field(() => [FieldError], { nullable: true })
+  errors?: FieldError[];
+
+  @Field(() => Bookmark || [Bookmark], { nullable: true })
+  results?: Bookmark | Bookmark[];
+}
+
+@ObjectType()
+export class GetBookmarkResponse {
+  /**
+   * !Maybe we can build a reusable object type for responses
+   */
+  // private objectType: any
+  // constructor(objectType: any) {
+  //   this.objectType = objectType
+  // }
+  @Field(() => [FieldError], { nullable: true })
+  errors?: FieldError[];
+
+  @Field(() => [Bookmark], { nullable: true })
+  results?: Bookmark[];
 }
