@@ -161,6 +161,9 @@ export class AuthResolver {
 
     const { refreshToken, accessToken } = createTokens(newUser);
 
+    console.log(refreshToken);
+    console.log(accessToken);
+
     reply.cookie("refresh-token", refreshToken, {
       expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
     });
