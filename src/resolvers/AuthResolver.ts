@@ -73,11 +73,13 @@ export class AuthResolver {
     reply.cookie("refresh-token", refreshToken, {
       expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
       sameSite: "none",
+      secure: true,
     });
 
     reply.cookie("access-token", accessToken, {
       expires: addTime({ date: new Date(), typeOfTime: "minutes", time: 15 }), //expires in 15mins
       sameSite: "none",
+      secure: true,
     });
 
     return { user };
@@ -162,9 +164,6 @@ export class AuthResolver {
     }
 
     const { refreshToken, accessToken } = createTokens(newUser);
-
-    console.log(refreshToken);
-    console.log(accessToken);
 
     reply.cookie("refresh-token", refreshToken, {
       expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
