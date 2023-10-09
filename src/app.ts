@@ -139,7 +139,6 @@ class App {
               "http://localhost:8100",
               "http://localhost:3000",
               "https://daylybread-marketr.web.app",
-              "https://daylybread-marketr.web.app/",
             ],
             credentials: true,
           },
