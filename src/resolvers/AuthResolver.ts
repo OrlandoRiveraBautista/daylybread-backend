@@ -74,12 +74,14 @@ export class AuthResolver {
       expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
       sameSite: "none",
       secure: true,
+      maxAge: new Date().setDate(new Date().getDate() + 7),
     });
 
     reply.cookie("access-token", accessToken, {
       expires: addTime({ date: new Date(), typeOfTime: "minutes", time: 15 }), //expires in 15mins
       sameSite: "none",
       secure: true,
+      maxAge: new Date().setTime(new Date().getTime() + 15 * 60 * 1000),
     });
 
     return { user };
