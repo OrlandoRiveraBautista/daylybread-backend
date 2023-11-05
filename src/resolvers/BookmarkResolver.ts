@@ -116,7 +116,7 @@ export class BookmarkResolver {
     const bookmarks = await em.find(
       Bookmark,
       { author: req.userId },
-      { populate: ["verses"] }
+      { populate: ["verses"], orderBy: [{ createdAt: -1 }] }
     );
 
     if (!bookmarks.length) {
@@ -198,5 +198,45 @@ export class BookmarkResolver {
     }
 
     return { results: chosenBookmark };
+  }
+
+  /**
+   * Route to delete a bookmark by id only if a user is authed
+   */
+  @ValidateUser()
+  @Mutation(() => Boolean || BookmarkResponse)
+  async deleteBookmarks(
+    @Arg("ids", () => [String]) ids: string[],
+    @Ctx() { em, request }: MyContext
+  ): Promise<Boolean | BookmarkResponse> {
+    // since I wil be using a non explicit value from request (userId)
+    // I will declare a local req as any
+    const req = request as any;
+
+    // check to see if the header was set from the middleware
+    if (!req.userId) {
+      const error: UserResponse = {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+
+      return error;
+    }
+
+    // loop through id
+    ids.forEach((id) => {
+      // getting the reference of the bookmark
+      const bookmark = em.getReference(Bookmark, id);
+
+      em.remove(bookmark);
+    });
+
+    em.flush();
+
+    return true;
   }
 }
