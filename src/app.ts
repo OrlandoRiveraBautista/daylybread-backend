@@ -136,10 +136,11 @@ class App {
           // this actually worked
           cors: {
             origin: [
-              "http://localhost:8100",
-              "http://localhost:3000",
-              "https://daylybread-marketr.web.app",
-              "https://app.daylybread.com",
+              "http://localhost:8100", // ----|
+              "http://localhost:3000", // ----------- local
+              "https://daylybread-marketr.web.app", // ----- old prod
+              "https://daylybread-dev.web.app", // ------ dev
+              "https://app.daylybread.com", // ---- prod
             ],
             credentials: true,
           },
