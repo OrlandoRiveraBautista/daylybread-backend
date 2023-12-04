@@ -1,13 +1,30 @@
-import { Resolver, Query, Arg, Ctx } from "type-graphql";
+import {
+  Resolver,
+  Query,
+  Arg,
+  Ctx,
+  PubSub,
+  Subscription,
+  Root,
+  Publisher,
+} from "type-graphql";
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
 
 @Resolver()
 export class OpenAiTestResolver {
+  @Subscription(() => String, {
+    topics: "AI_CHAT_RESPONSE_UPDATED",
+  })
+  aiChatReponseUpdated(@Root() chatMessage: string): string {
+    return chatMessage;
+  }
+
   @Query(() => String)
   async getOpen(
     @Arg("promptText", () => String) promptText: string | undefined,
-    @Ctx() { chatgpt }: MyContext
+    @Ctx() { chatgpt }: MyContext,
+    @PubSub("AI_CHAT_RESPONSE_UPDATED") publish: Publisher<String>
   ): Promise<String | FieldError | undefined> {
     if (!promptText) return; // check to see if there is anything in the prompt
 
@@ -17,6 +34,13 @@ export class OpenAiTestResolver {
     try {
       response = await chatgpt.call({
         input: promptText,
+        callbacks: [
+          {
+            async handleLLMNewToken(token: any) {
+              await publish(token);
+            },
+          },
+        ],
       });
     } catch (e) {
       const error: FieldError = {
