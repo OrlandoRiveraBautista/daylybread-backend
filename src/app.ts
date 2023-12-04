@@ -9,6 +9,9 @@ import {
 import { ApolloServerPlugin } from "apollo-server-plugin-base";
 import cookie from "@fastify/cookie";
 import { buildSchema, NonEmptyArray } from "type-graphql";
+import { PubSub } from "graphql-subscriptions"; // have to use the graphql-subscriptions directly to
+import { WebSocketServer } from "ws";
+import { useServer } from "graphql-ws/lib/use/ws";
 import {
   EntityClass,
   AnyEntity,
@@ -74,13 +77,23 @@ class App {
 
   // function to start app
   public async listen() {
-    // create schema
+    // PubSub intance for graphql subscriptions
+    const pubSub = new PubSub();
+
+    // Schemas
+    // mikroORM schema
     const orm = await MikroORM.init<MongoDriver>(this.mikroConfig);
     orm.getSchemaGenerator().createSchema();
+    // GraphQL schema
+    const graphqlSchema = await buildSchema({
+      resolvers: this.resolvers,
+      validate: true,
+      pubSub, // pubSub instance needs to be added into schema so that graphql knows to look for subscriptions
+    });
 
     // Open AI configuration
     const openai = new OpenAI({ openAIApiKey: process.env.OPENAI_API_KEY });
-    const chatgpt = new ChatOpenAI({ temperature: 0 });
+    const chatgpt = new ChatOpenAI({ temperature: 0, streaming: true });
 
     // Chat prompt template
     const chatPrompt = ChatPromptTemplate.fromPromptMessages([
@@ -102,18 +115,36 @@ class App {
       llm: chatgpt,
     });
 
+    const wsServer = new WebSocketServer({
+      server: this.app.server,
+      path: "/graphql",
+    });
+
+    const serverCleanup = useServer(
+      {
+        schema: graphqlSchema,
+      },
+      wsServer
+    );
+
     // configure instace of ApolloServer
     this.apolloServer = new ApolloServer({
-      schema: await buildSchema({
-        resolvers: this.resolvers,
-        validate: true,
-      }),
+      schema: graphqlSchema,
       csrfPrevention: true,
       cache: "bounded",
       plugins: [
         this.fastifyAppClosePlugin(this.app),
         ApolloServerPluginDrainHttpServer({ httpServer: this.app.server }),
         ApolloServerPluginLandingPageLocalDefault({ embed: true }),
+        {
+          async serverWillStart() {
+            return {
+              async drainServer() {
+                await serverCleanup.dispose();
+              },
+            };
+          },
+        },
       ],
       context: ({ request, reply }) => ({
         request,
