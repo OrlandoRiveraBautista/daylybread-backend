@@ -10,6 +10,7 @@ import {
 } from "type-graphql";
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
+import { SetupChatGpt } from "../../middlewares/setupChatGpt";
 
 @Resolver()
 export class OpenAiTestResolver {
@@ -20,6 +21,7 @@ export class OpenAiTestResolver {
     return chatMessage;
   }
 
+  @SetupChatGpt()
   @Query(() => String)
   async getOpen(
     @Arg("promptText", () => String) promptText: string | undefined,
@@ -30,7 +32,6 @@ export class OpenAiTestResolver {
 
     // call ai with prompt text
     let response;
-
     try {
       response = await chatgpt.call({
         input: promptText,
