@@ -59,6 +59,7 @@ export class OpenAiTestResolver {
       return error;
     }
 
+    console.log("hello");
     // return response text
     return response.response;
   }
