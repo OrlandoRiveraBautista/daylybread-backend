@@ -17,6 +17,8 @@ export const SetupChatGpt = () => {
       // generate a new ObjectId based on the IP address
       const chatId = generateObjectIdFromString(ip.address());
 
+      console.log(ip.address());
+
       //   create a new message history and set it to chatHistory to be consumed by the model
       memory.chatHistory = new MikroORMChatMessageHistory({
         em: context.em,
