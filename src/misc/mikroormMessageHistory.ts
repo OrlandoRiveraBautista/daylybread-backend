@@ -45,10 +45,15 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   async getMessages(): Promise<BaseMessage[]> {
+    console.log("getting messages");
     this.document = await this.em.findOne(AIMessage, {
       chatId: this.chatId,
     });
+    console.log("document found", this.document);
+
     const messages = this.document?.messages.slice(-this.limit) || [];
+
+    console.log("messages found", messages);
 
     return mapStoredMessagesToChatMessages(messages);
   }
