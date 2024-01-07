@@ -16,8 +16,10 @@ export const SetupChatGpt = () => {
       const chain = context.chatgpt;
       const memory = chain.memory as BufferWindowMemory;
       // generate a new ObjectId based on the IP address
-      const chatId = generateObjectIdFromString(request.ip);
-      console.log("request ip", request.ip);
+      const chatId = generateObjectIdFromString(
+        request.connection.remoteAddress
+      );
+      console.log("request ip", request.connection.remoteAddress);
       console.log("chatid: ", chatId);
 
       //   create a new message history and set it to chatHistory to be consumed by the model
