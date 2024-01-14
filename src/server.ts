@@ -9,6 +9,7 @@ import { Book } from "./entities/Bible/Book";
 import { Chapter } from "./entities/Bible/Chapter";
 import { Verse } from "./entities/Bible/Verse";
 import { Bookmark } from "./entities/Bookmark";
+import { AIMessage } from "./entities/AIMemory";
 
 /* Resolvers */
 import { ExampleResolver } from "./resolvers/example";
@@ -26,7 +27,16 @@ dotenv.config();
 const server = async () => {
   const app = new App({
     port: process.env.PORT ? Number.parseInt(process.env.PORT) : 5001,
-    entities: [User, Translation, Book, Chapter, Verse, Test, Bookmark],
+    entities: [
+      User,
+      Translation,
+      Book,
+      Chapter,
+      Verse,
+      Test,
+      Bookmark,
+      AIMessage,
+    ],
     resolvers: [
       ExampleResolver,
       AuthResolver,

@@ -7,9 +7,22 @@ import {
   Subscription,
   Root,
   Publisher,
+  InputType,
+  Field,
 } from "type-graphql";
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
+import { setupChatGpt } from "../../middlewares/setupChatGpt";
+
+/* --- Arguments (Args) Object Input Types --- */
+@InputType()
+export class GptArgs {
+  @Field()
+  promptText: string;
+
+  @Field()
+  deviceId: string;
+}
 
 @Resolver()
 export class OpenAiTestResolver {
@@ -22,18 +35,19 @@ export class OpenAiTestResolver {
 
   @Query(() => String)
   async getOpen(
-    @Arg("promptText", () => String) promptText: string | undefined,
-    @Ctx() { chatgpt }: MyContext,
+    @Arg("options", () => GptArgs) options: GptArgs,
+    @Ctx() context: MyContext,
     @PubSub("AI_CHAT_RESPONSE_UPDATED") publish: Publisher<String>
   ): Promise<String | FieldError | undefined> {
-    if (!promptText) return; // check to see if there is anything in the prompt
+    if (!options.promptText) return; // check to see if there is anything in the prompt
+
+    await setupChatGpt(context, options.deviceId);
 
     // call ai with prompt text
     let response;
-
     try {
-      response = await chatgpt.call({
-        input: promptText,
+      response = await context.chatgpt.call({
+        input: options.promptText,
         callbacks: [
           {
             async handleLLMNewToken(token: any) {
