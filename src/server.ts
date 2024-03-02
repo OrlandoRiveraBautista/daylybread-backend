@@ -21,6 +21,7 @@ import { OpenAiTestResolver } from "./resolvers/OpenAI/test";
 import { AuthResolver } from "./resolvers/AuthResolver";
 import { UserResolver } from "./resolvers/UserResolver";
 import { BookmarkResolver } from "./resolvers/BookmarkResolver";
+import { AudioResolver } from "./resolvers/AudioResolver";
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ const server = async () => {
       OpenAiTestResolver,
       UserResolver,
       BookmarkResolver,
+      AudioResolver,
     ],
   });
 
