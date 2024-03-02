@@ -31,6 +31,7 @@ import {
 import { ConversationChain } from "langchain/chains";
 import { BufferWindowMemory } from "langchain/memory";
 import { __prod__ } from "./constants";
+import * as AWS from "aws-sdk";
 
 /** App class */
 class App {
@@ -89,6 +90,13 @@ class App {
       resolvers: this.resolvers,
       validate: true,
       pubSub, // pubSub instance needs to be added into schema so that graphql knows to look for subscriptions
+    });
+
+    // Set AWS credentials and region
+    AWS.config.update({
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCES_KEY,
+      region: "us-east-2", // e.g., 'us-east-1'
     });
 
     // Open AI configuration
@@ -152,6 +160,7 @@ class App {
         em: orm.em.fork(), // need to use a fork of em
         openai: openai,
         chatgpt: chain,
+        AWS: AWS,
       }),
     });
 
