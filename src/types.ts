@@ -3,6 +3,7 @@ import { OpenAI } from "langchain/llms/openai";
 import { ConversationChain } from "langchain/chains";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { InputType, Field, ObjectType } from "type-graphql";
+import * as AWS from "aws-sdk";
 
 /* Entities */
 import { FieldError } from "./entities/Errors/FieldError";
@@ -15,6 +16,7 @@ export type MyContext = {
   em: EntityManager;
   openai: OpenAI;
   chatgpt: ConversationChain;
+  AWS: typeof AWS;
 };
 
 /* --- Arguments (Args) Object Input Types --- */
