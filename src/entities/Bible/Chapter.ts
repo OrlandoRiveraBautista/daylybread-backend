@@ -3,6 +3,33 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
 import { TranslationField } from "./Book";
 
+export interface ITimeRange {
+  minutes: number;
+  seconds: number;
+}
+
+@ObjectType()
+class TimeRange {
+  @Field(() => Number)
+  @Property()
+  minutes: number;
+
+  @Field(() => Number)
+  @Property()
+  seconds: number;
+}
+
+@ObjectType()
+class ITimestamps {
+  @Field(() => TimeRange)
+  @Property()
+  start: TimeRange;
+
+  @Field(() => TimeRange)
+  @Property()
+  end: TimeRange;
+}
+
 @ObjectType()
 export class ChapterVerse {
   @Field(() => String)
@@ -16,6 +43,10 @@ export class ChapterVerse {
   @Field(() => String)
   @Property()
   text: string;
+
+  @Field(() => ITimestamps)
+  @Property()
+  audioTimestamp: ITimestamps;
 }
 
 @Entity()
@@ -40,6 +71,10 @@ export class Chapter {
   @Field(() => String)
   @Property()
   bibleId!: string;
+
+  @Field(() => String)
+  @Property()
+  audioLink: string;
 
   @Field(() => [ChapterVerse])
   @Property()
