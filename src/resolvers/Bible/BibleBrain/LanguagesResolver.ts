@@ -8,10 +8,10 @@ import {
 } from "type-graphql";
 import axios from "axios";
 
-import config from "../../misc/biblebrain/axiosConfig";
-import { FieldError } from "../../entities/Errors/FieldError";
-import { BBLanguage } from "../../misc/biblebrain/languagesTypes";
-import { BBMetadata } from "../../misc/biblebrain/metadataTypes";
+import config from "../../../misc/biblebrain/axiosConfig";
+import { FieldError } from "../../../entities/Errors/FieldError";
+import { BBLanguage } from "../../../misc/biblebrain/languagesTypes";
+import { BBMetadata } from "../../../misc/biblebrain/metadataTypes";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
