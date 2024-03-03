@@ -14,8 +14,8 @@ class BBPagination {
   @Field()
   current_page: number;
 
-  @Field()
-  total_pages: number;
+  @Field({ nullable: true })
+  total_pages?: number;
 
   @Field({ nullable: true })
   links?: number;
