@@ -42,7 +42,7 @@ export class BibleReponse {
 export class BiblesResolver {
   @Query(() => BibleReponse || FieldError)
   async getListOFBibles(@Arg("options", () => BibleArgs) options: BibleArgs) {
-    // set url pased on if the user picked a country or not
+    // set url with correct params
     const url = `https://4.dbt.io/api/bibles?page=${options.page}
         ${options.languageCode ? `&language_code=${options.languageCode}` : ""}
         ${
@@ -52,7 +52,7 @@ export class BiblesResolver {
     config.url = url;
 
     try {
-      const { data } = await axios<any>(config);
+      const { data } = await axios<BibleReponse>(config);
       console.log(data.data);
 
       return data;
