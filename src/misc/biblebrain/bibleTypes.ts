@@ -19,7 +19,7 @@ export class BBBible {
   autonym: string;
 
   @Field()
-  language_id: number;
+  languageId: number;
 
   @Field()
   iso: string;

@@ -11,6 +11,7 @@ import axios from "axios";
 import config from "../../../misc/biblebrain/axiosConfig";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { BBBook } from "../../../misc/biblebrain/bookTypes";
+import { underscoreToCamelCase } from "../../../utility";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -49,10 +50,10 @@ export class BooksResolver {
     config.url = url;
 
     try {
-      const { data } = await axios<BookResponse>(config);
-      console.log(data.data);
+      const { data } = await axios<any>(config);
+      const camelCaseData: BookResponse = underscoreToCamelCase(data);
 
-      return data;
+      return camelCaseData;
     } catch (err) {
       const error: FieldError = {
         message: err,

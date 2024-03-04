@@ -12,6 +12,7 @@ import config from "../../../misc/biblebrain/axiosConfig";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { BBLanguage } from "../../../misc/biblebrain/languagesTypes";
 import { BBMetadata } from "../../../misc/biblebrain/metadataTypes";
+import { underscoreToCamelCase } from "../../../utility";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -49,9 +50,10 @@ export class LanguagesResolver {
     config.url = url;
 
     try {
-      const { data } = await axios<LanguageReponse>(config);
+      const { data } = await axios<any>(config);
+      const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
 
-      return data;
+      return camelCaseData;
     } catch (err) {
       const error: FieldError = {
         message: err,

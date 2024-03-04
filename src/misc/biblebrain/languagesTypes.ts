@@ -7,7 +7,7 @@ export class BBLanguage {
   id: number;
 
   @Field(() => String)
-  glotto_id: string;
+  glottoId: string;
 
   @Field(() => String)
   iso: string;
@@ -25,10 +25,10 @@ export class BBLanguage {
   filesets: number;
 
   @Field({ nullable: true })
-  rolv_code: string;
+  rolvCode: string;
 
   @Field()
-  country_population: number;
+  countryPopulation: number;
 
   @Field(() => JSONScalar)
   translations: Record<string, string>;

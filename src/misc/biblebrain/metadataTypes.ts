@@ -9,25 +9,25 @@ class BBPagination {
   count?: number;
 
   @Field()
-  per_page: number;
+  perPage: number;
 
   @Field()
-  current_page: number;
+  currentPage: number;
 
   @Field({ nullable: true })
-  total_pages?: number;
+  totalPages?: number;
 
   @Field({ nullable: true })
   links?: number;
 
   @Field({ nullable: true })
-  last_page?: number;
+  lastPage?: number;
 
   @Field({ nullable: true })
-  next_page_url?: string;
+  nextPageUrl?: string;
 
   @Field({ nullable: true })
-  prev_page_url?: string;
+  prevPageUrl?: string;
 
   @Field({ nullable: true })
   from?: number;

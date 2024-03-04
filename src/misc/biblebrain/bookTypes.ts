@@ -4,13 +4,13 @@ import { Field, ObjectType } from "type-graphql";
 @ObjectType()
 export class BBBook {
   @Field()
-  book_id: string;
+  bookId: string;
 
   @Field()
-  book_id_usfx: string;
+  bookIdUsfx: string;
 
   @Field()
-  book_id_osis: string;
+  bookIdOsis: string;
 
   @Field()
   name: string;
@@ -19,20 +19,20 @@ export class BBBook {
   testament: string;
 
   @Field()
-  testament_order: number;
+  testamentOrder: number;
 
   @Field()
-  book_order: string;
+  bookOrder: string;
 
   @Field()
-  book_group: string;
+  bookGroup: string;
 
   @Field()
-  name_short: string;
+  nameShort: string;
 
   @Field(() => [Number])
   chapters: Array<number>;
 
   @Field(() => JSONScalar)
-  content_types: Record<string, string>;
+  contentTypes: Record<string, string>;
 }

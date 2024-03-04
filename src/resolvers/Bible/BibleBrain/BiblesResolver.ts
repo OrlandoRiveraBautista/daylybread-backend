@@ -12,6 +12,7 @@ import config from "../../../misc/biblebrain/axiosConfig";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { BBMetadata } from "../../../misc/biblebrain/metadataTypes";
 import { BBBible } from "../../../misc/biblebrain/bibleTypes";
+import { underscoreToCamelCase } from "../../../utility";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -52,10 +53,10 @@ export class BiblesResolver {
     config.url = url;
 
     try {
-      const { data } = await axios<BibleReponse>(config);
-      console.log(data.data);
+      const { data } = await axios<any>(config);
+      const camelCaseData: BibleReponse = underscoreToCamelCase(data);
 
-      return data;
+      return camelCaseData;
     } catch (err) {
       const error: FieldError = {
         message: err,
