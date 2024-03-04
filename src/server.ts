@@ -25,6 +25,7 @@ import { BookmarkResolver } from "./resolvers/BookmarkResolver";
 import { LanguagesResolver } from "./resolvers/Bible/BibleBrain/LanguagesResolver";
 import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
 import { BooksResolver } from "./resolvers/Bible/BibleBrain/BooksResolver";
+import { VersesResolver } from "./resolvers/Bible/BibleBrain/VersesResolver";
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ const server = async () => {
       LanguagesResolver,
       BiblesResolver,
       BooksResolver,
+      VersesResolver,
       TranslationResolver,
       BookResolver,
       ChapterResolver,
