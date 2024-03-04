@@ -34,3 +34,21 @@ export const generateObjectIdFromString = (string: string) => {
 
   return objectId;
 };
+
+/**
+ * Function to transform underscore keys to camelCase
+ */
+export const underscoreToCamelCase = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(underscoreToCamelCase);
+  } else if (obj !== null && typeof obj === "object") {
+    return Object.keys(obj).reduce((acc, key) => {
+      const camelCaseKey = key.replace(/_([a-z])/g, (_, char) =>
+        char.toUpperCase()
+      );
+      acc[camelCaseKey] = underscoreToCamelCase(obj[key]);
+      return acc;
+    }, {} as any);
+  }
+  return obj;
+};
