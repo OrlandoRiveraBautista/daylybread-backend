@@ -2,33 +2,33 @@ import { Field, ObjectType } from "type-graphql";
 
 @ObjectType()
 export class BBVerse {
-  @Field()
-  bookId: string;
+  @Field({ nullable: true })
+  bookId?: string;
 
-  @Field()
-  bookName: string;
+  @Field({ nullable: true })
+  bookName?: string;
 
-  @Field()
-  bookNameAlt: string;
+  @Field({ nullable: true })
+  bookNameAlt?: string;
 
-  @Field()
-  chapter: number;
+  @Field({ nullable: true })
+  chapter?: number;
 
-  @Field()
-  chapterAlt: string;
+  @Field({ nullable: true })
+  chapterAlt?: string;
 
-  @Field()
-  verseStart: number;
+  @Field({ nullable: true })
+  verseStart?: number;
 
-  @Field()
-  verseStartAlt: string;
+  @Field({ nullable: true })
+  verseStartAlt?: string;
 
-  @Field()
-  verseEnd: number;
+  @Field({ nullable: true })
+  verseEnd?: number;
 
-  @Field()
-  verseEndAlt: string;
+  @Field({ nullable: true })
+  verseEndAlt?: string;
 
-  @Field()
-  verseText: string;
+  @Field({ nullable: true })
+  verseText?: string;
 }

@@ -3,30 +3,30 @@ import { Field, ObjectType } from "type-graphql";
 
 @ObjectType()
 export class BBBible {
-  @Field()
-  abbr: string;
+  @Field({ nullable: true })
+  abbr?: string;
 
-  @Field(() => String)
-  name: string;
+  @Field(() => String, { nullable: true })
+  name?: string;
 
   @Field(() => String, { nullable: true })
   vname?: string;
 
-  @Field(() => String)
-  language: string;
+  @Field(() => String, { nullable: true })
+  language?: string;
 
-  @Field(() => String)
-  autonym: string;
+  @Field(() => String, { nullable: true })
+  autonym?: string;
 
-  @Field()
-  languageId: number;
+  @Field({ nullable: true })
+  languageId?: number;
 
-  @Field()
-  iso: string;
+  @Field({ nullable: true })
+  iso?: string;
 
-  @Field()
-  date: string;
+  @Field({ nullable: true })
+  date?: string;
 
-  @Field(() => JSONScalar)
-  filesets: Record<string, string>;
+  @Field(() => JSONScalar, { nullable: true })
+  filesets?: Record<string, string>;
 }

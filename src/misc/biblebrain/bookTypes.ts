@@ -3,36 +3,36 @@ import { Field, ObjectType } from "type-graphql";
 
 @ObjectType()
 export class BBBook {
-  @Field()
-  bookId: string;
+  @Field({ nullable: true })
+  bookId?: string;
 
-  @Field()
-  bookIdUsfx: string;
+  @Field({ nullable: true })
+  bookIdUsfx?: string;
 
-  @Field()
-  bookIdOsis: string;
+  @Field({ nullable: true })
+  bookIdOsis?: string;
 
-  @Field()
-  name: string;
+  @Field({ nullable: true })
+  name?: string;
 
-  @Field(() => String)
-  testament: string;
+  @Field(() => String, { nullable: true })
+  testament?: string;
 
-  @Field()
-  testamentOrder: number;
+  @Field({ nullable: true })
+  testamentOrder?: number;
 
-  @Field()
-  bookOrder: string;
+  @Field({ nullable: true })
+  bookOrder?: string;
 
-  @Field()
-  bookGroup: string;
+  @Field({ nullable: true })
+  bookGroup?: string;
 
-  @Field()
-  nameShort: string;
+  @Field({ nullable: true })
+  nameShort?: string;
 
-  @Field(() => [Number])
-  chapters: Array<number>;
+  @Field(() => [Number], { nullable: true })
+  chapters?: Array<number>;
 
-  @Field(() => JSONScalar)
-  contentTypes: Record<string, string>;
+  @Field(() => JSONScalar, { nullable: true })
+  contentTypes?: Record<string, string>;
 }

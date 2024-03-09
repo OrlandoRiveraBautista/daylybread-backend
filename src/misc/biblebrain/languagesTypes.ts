@@ -6,30 +6,30 @@ export class BBLanguage {
   @Field()
   id: number;
 
-  @Field(() => String)
-  glottoId: string;
+  @Field(() => String, { nullable: true })
+  glottoId?: string;
 
-  @Field(() => String)
-  iso: string;
+  @Field(() => String, { nullable: true })
+  iso?: string;
 
-  @Field(() => String)
-  name: string;
+  @Field(() => String, { nullable: true })
+  name?: string;
 
-  @Field(() => String)
-  autonym: string;
+  @Field(() => String, { nullable: true })
+  autonym?: string;
 
   @Field()
   bibles: number;
 
-  @Field()
-  filesets: number;
+  @Field({ nullable: true })
+  filesets?: number;
 
   @Field({ nullable: true })
-  rolvCode: string;
+  rolvCode?: string;
 
-  @Field()
-  countryPopulation: number;
+  @Field({ nullable: true })
+  countryPopulation?: number;
 
-  @Field(() => JSONScalar)
-  translations: Record<string, string>;
+  @Field(() => JSONScalar, { nullable: true })
+  translations?: Record<string, string>;
 }

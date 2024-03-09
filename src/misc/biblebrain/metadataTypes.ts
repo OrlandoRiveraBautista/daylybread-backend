@@ -1,24 +1,25 @@
 import { Field, ObjectType } from "type-graphql";
+import { JSONScalar } from "../../types";
 
 @ObjectType()
 class BBPagination {
-  @Field()
-  total: number;
+  @Field({ nullable: true })
+  total?: number;
 
   @Field({ nullable: true })
   count?: number;
 
-  @Field()
-  perPage: number;
+  @Field({ nullable: true })
+  perPage?: number;
 
-  @Field()
-  currentPage: number;
+  @Field({ nullable: true })
+  currentPage?: number;
 
   @Field({ nullable: true })
   totalPages?: number;
 
-  @Field({ nullable: true })
-  links?: number;
+  @Field(() => JSONScalar, { nullable: true })
+  links?: Record<string, string>;
 
   @Field({ nullable: true })
   lastPage?: number;
