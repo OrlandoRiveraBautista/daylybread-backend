@@ -24,6 +24,15 @@ export class LanguagesArgs {
   page?: number;
 }
 
+@InputType()
+export class SearchLanguageArgs {
+  @Field({ nullable: true })
+  search?: string;
+
+  @Field({ nullable: true })
+  mediaInclude?: string;
+}
+
 @ObjectType()
 export class LanguageReponse {
   @Field(() => [BBLanguage])
@@ -53,6 +62,32 @@ export class LanguagesResolver {
       const { data } = await axios<any>(config);
       const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
 
+      return camelCaseData;
+    } catch (err) {
+      const error: FieldError = {
+        message: err,
+        field: "Calling to get all languages available in Bible Brain",
+      };
+
+      return error;
+    }
+  }
+
+  @Query(() => LanguageReponse || FieldError)
+  async searchListOfLanguages(
+    @Arg("options", () => SearchLanguageArgs) options: SearchLanguageArgs
+  ) {
+    // set url pased on if the user picked a country or not
+    const url = `https://4.dbt.io/api/languages/search/${options.search}?v=4
+    ${options.mediaInclude ? `&set_type_code=${options.mediaInclude}` : ""}`;
+
+    config.url = url;
+
+    try {
+      const { data } = await axios<any>(config);
+      const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
+
+      console.log(camelCaseData);
       return camelCaseData;
     } catch (err) {
       const error: FieldError = {
