@@ -21,6 +21,9 @@ export class BibleArgs {
   mediaExclude?: string;
 
   @Field({ nullable: true })
+  mediaInclude?: string;
+
+  @Field({ nullable: true })
   languageCode?: string;
 
   @Field({ nullable: true, defaultValue: 1 })
@@ -46,16 +49,14 @@ export class BiblesResolver {
     // set url with correct params
     const url = `https://4.dbt.io/api/bibles?page=${options.page}
         ${options.languageCode ? `&language_code=${options.languageCode}` : ""}
-        ${
-          options.mediaExclude ? `&media_excluded=${options.mediaExclude}` : ""
-        }`;
+        ${options.mediaExclude ? `&media_excluded=${options.mediaExclude}` : ""}
+        ${options.mediaInclude ? `&media=${options.mediaInclude}` : ""}`;
 
     config.url = url;
 
     try {
       const { data } = await axios<any>(config);
       const camelCaseData: BibleReponse = underscoreToCamelCase(data);
-
       return camelCaseData;
     } catch (err) {
       const error: FieldError = {
