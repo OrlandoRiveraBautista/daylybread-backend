@@ -29,7 +29,7 @@ class BibleBrainService {
    * Will return a list of languages from a search.
    * You can also specify the media you want to include in your search, all other medias will be excluded.
    */
-  public async searchAvailbaleLanguages(
+  public async searchAvailableLanguages(
     search?: string,
     mediaInclude?: string
   ) {

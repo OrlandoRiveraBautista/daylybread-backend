@@ -60,7 +60,7 @@ export class LanguagesResolver {
     const service = new BibleBrainService();
 
     try {
-      const data = await service.searchAvailbaleLanguages(
+      const data = await service.searchAvailableLanguages(
         options.search,
         options.mediaInclude
       );
