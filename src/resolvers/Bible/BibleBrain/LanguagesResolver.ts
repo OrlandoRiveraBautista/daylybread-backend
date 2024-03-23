@@ -1,18 +1,10 @@
-import {
-  Resolver,
-  Query,
-  Arg,
-  InputType,
-  Field,
-  ObjectType,
-} from "type-graphql";
-import axios from "axios";
+import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 
-import config from "../../../misc/biblebrain/axiosConfig";
+/* Services */
+import BibleBrainService from "../../../services/BibleBrainService";
+
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { BBLanguage } from "../../../misc/biblebrain/languagesTypes";
-import { BBMetadata } from "../../../misc/biblebrain/metadataTypes";
-import { underscoreToCamelCase } from "../../../utility";
+import { LanguageReponse } from "./types";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -33,15 +25,6 @@ export class SearchLanguageArgs {
   mediaInclude?: string;
 }
 
-@ObjectType()
-export class LanguageReponse {
-  @Field(() => [BBLanguage])
-  data: [BBLanguage];
-
-  @Field(() => BBMetadata)
-  meta: BBMetadata;
-}
-
 /**
  * Resolver to get all possible languages
  */
@@ -51,18 +34,15 @@ export class LanguagesResolver {
   async getListOfLanguages(
     @Arg("options", () => LanguagesArgs) options: LanguagesArgs
   ) {
-    // set url pased on if the user picked a country or not
-    const url = options.country
-      ? `https://4.dbt.io/api/languages?include_alt_names=true&country=${options.country}&v=4&page=${options.page}`
-      : `https://4.dbt.io/api/languages?v=4&page=${options.page}`;
-
-    config.url = url;
+    const service = new BibleBrainService();
 
     try {
-      const { data } = await axios<any>(config);
-      const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
+      const data = await service.getAvailableLanguages(
+        options.country,
+        options.page
+      );
 
-      return camelCaseData;
+      return data;
     } catch (err) {
       const error: FieldError = {
         message: err,
@@ -77,18 +57,15 @@ export class LanguagesResolver {
   async searchListOfLanguages(
     @Arg("options", () => SearchLanguageArgs) options: SearchLanguageArgs
   ) {
-    // set url pased on if the user picked a country or not
-    const url = `https://4.dbt.io/api/languages/search/${options.search}?v=4
-    ${options.mediaInclude ? `&set_type_code=${options.mediaInclude}` : ""}`;
-
-    config.url = url;
+    const service = new BibleBrainService();
 
     try {
-      const { data } = await axios<any>(config);
-      const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
+      const data = await service.searchAvailbaleLanguages(
+        options.search,
+        options.mediaInclude
+      );
 
-      console.log(camelCaseData);
-      return camelCaseData;
+      return data;
     } catch (err) {
       const error: FieldError = {
         message: err,
