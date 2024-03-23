@@ -5,6 +5,7 @@ import {
   BibleReponse,
   BookResponse,
   LanguageReponse,
+  VerseResponse,
 } from "../resolvers/Bible/BibleBrain/types";
 
 class BibleBrainService {
@@ -84,6 +85,22 @@ class BibleBrainService {
     const { data } = await axios<any>(config);
     const camelCaseData: BookResponse = underscoreToCamelCase(data);
 
+    return camelCaseData;
+  }
+
+  public async getAvailableVerse(
+    bibleId: string,
+    bookId: string,
+    chapterNumber: number
+  ) {
+    // set url pased on if the user picked a country or not
+    const url = `https://4.dbt.io/api/bibles/filesets/${bibleId}/${bookId}/${chapterNumber}`;
+
+    config.url = url;
+
+    const { data } = await axios<any>(config);
+
+    const camelCaseData: VerseResponse = underscoreToCamelCase(data);
     return camelCaseData;
   }
 }

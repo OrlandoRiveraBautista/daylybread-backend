@@ -1,16 +1,7 @@
-import {
-  Resolver,
-  Query,
-  Arg,
-  InputType,
-  Field,
-  ObjectType,
-} from "type-graphql";
-import axios from "axios";
-import { underscoreToCamelCase } from "../../../utility";
-import config from "../../../misc/biblebrain/axiosConfig";
+import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { BBVerse } from "../../../misc/biblebrain/verseTypes";
+import { VerseResponse } from "./types";
+import BibleBrainService from "../../../services/BibleBrainService";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -23,12 +14,6 @@ export class VerseArgs {
 
   @Field()
   chapterNumber: number;
-}
-
-@ObjectType()
-export class VerseResponse {
-  @Field(() => [BBVerse])
-  data: [BBVerse];
 }
 
 /**
@@ -49,17 +34,16 @@ export class VersesResolver {
       return error;
     }
 
-    // set url pased on if the user picked a country or not
-    const url = `https://4.dbt.io/api/bibles/filesets/${options.bibleId}/${options.bookId}/${options.chapterNumber}`;
-
-    config.url = url;
+    const service = new BibleBrainService();
 
     try {
-      const { data } = await axios<any>(config);
+      const data = service.getAvailableVerse(
+        options.bibleId,
+        options.bookId,
+        options.chapterNumber
+      );
 
-      const camelCaseData: VerseResponse = underscoreToCamelCase(data);
-
-      return camelCaseData;
+      return data;
     } catch (err) {
       const error: FieldError = {
         message: err,
