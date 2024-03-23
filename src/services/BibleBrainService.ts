@@ -3,6 +3,7 @@ import config from "../misc/biblebrain/axiosConfig";
 import { underscoreToCamelCase } from "../utility";
 import {
   BibleReponse,
+  BookResponse,
   LanguageReponse,
 } from "../resolvers/Bible/BibleBrain/types";
 
@@ -68,6 +69,21 @@ class BibleBrainService {
 
     const { data } = await axios<any>(config);
     const camelCaseData: BibleReponse = underscoreToCamelCase(data);
+    return camelCaseData;
+  }
+
+  /**
+   * Will return all available books for a give bible by bibleId
+   */
+  public async getAvailableBooks(bibleId: string) {
+    // set url pased on if the user picked a country or not
+    const url = `https://4.dbt.io/api/bibles/${bibleId}/book?verify_content=true`;
+
+    config.url = url;
+
+    const { data } = await axios<any>(config);
+    const camelCaseData: BookResponse = underscoreToCamelCase(data);
+
     return camelCaseData;
   }
 }

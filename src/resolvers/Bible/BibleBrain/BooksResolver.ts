@@ -1,29 +1,13 @@
-import {
-  Resolver,
-  Query,
-  Arg,
-  InputType,
-  Field,
-  ObjectType,
-} from "type-graphql";
-import axios from "axios";
-
-import config from "../../../misc/biblebrain/axiosConfig";
+import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { BBBook } from "../../../misc/biblebrain/bookTypes";
-import { underscoreToCamelCase } from "../../../utility";
+import { BookResponse } from "./types";
+import BibleBrainService from "../../../services/BibleBrainService";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
 export class BookArgs {
   @Field()
   bibleId: string;
-}
-
-@ObjectType()
-export class BookResponse {
-  @Field(() => [BBBook])
-  data: [BBBook];
 }
 
 /**
@@ -44,16 +28,12 @@ export class BooksResolver {
       return error;
     }
 
-    // set url pased on if the user picked a country or not
-    const url = `https://4.dbt.io/api/bibles/${options.bibleId}/book?verify_content=true`;
-
-    config.url = url;
+    const service = new BibleBrainService();
 
     try {
-      const { data } = await axios<any>(config);
-      const camelCaseData: BookResponse = underscoreToCamelCase(data);
+      const data = service.getAvailableBooks(options.bibleId);
 
-      return camelCaseData;
+      return data;
     } catch (err) {
       const error: FieldError = {
         message: err,
