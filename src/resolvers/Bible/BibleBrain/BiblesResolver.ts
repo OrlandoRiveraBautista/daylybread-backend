@@ -1,18 +1,7 @@
-import {
-  Resolver,
-  Query,
-  Arg,
-  InputType,
-  Field,
-  ObjectType,
-} from "type-graphql";
-import axios from "axios";
-
-import config from "../../../misc/biblebrain/axiosConfig";
+import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { BBMetadata } from "../../../misc/biblebrain/metadataTypes";
-import { BBBible } from "../../../misc/biblebrain/bibleTypes";
-import { underscoreToCamelCase } from "../../../utility";
+import { BibleReponse } from "./types";
+import BibleBrainService from "../../../services/BibleBrainService";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -30,15 +19,6 @@ export class BibleArgs {
   page?: number;
 }
 
-@ObjectType()
-export class BibleReponse {
-  @Field(() => [BBBible])
-  data: [BBBible];
-
-  @Field(() => BBMetadata)
-  meta: BBMetadata;
-}
-
 /**
  * Resolver to get all possible languages
  */
@@ -46,18 +26,17 @@ export class BibleReponse {
 export class BiblesResolver {
   @Query(() => BibleReponse || FieldError)
   async getListOFBibles(@Arg("options", () => BibleArgs) options: BibleArgs) {
-    // set url with correct params
-    const url = `https://4.dbt.io/api/bibles?page=${options.page}
-        ${options.languageCode ? `&language_code=${options.languageCode}` : ""}
-        ${options.mediaExclude ? `&media_excluded=${options.mediaExclude}` : ""}
-        ${options.mediaInclude ? `&media=${options.mediaInclude}` : ""}`;
-
-    config.url = url;
+    const service = new BibleBrainService();
 
     try {
-      const { data } = await axios<any>(config);
-      const camelCaseData: BibleReponse = underscoreToCamelCase(data);
-      return camelCaseData;
+      const data = await service.getAvailableBibles(
+        options.mediaExclude,
+        options.mediaInclude,
+        options.languageCode,
+        options.page
+      );
+
+      return data;
     } catch (err) {
       const error: FieldError = {
         message: err,

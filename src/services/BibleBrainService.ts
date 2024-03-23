@@ -1,7 +1,10 @@
 import axios from "axios";
 import config from "../misc/biblebrain/axiosConfig";
 import { underscoreToCamelCase } from "../utility";
-import { LanguageReponse } from "../resolvers/Bible/BibleBrain/types";
+import {
+  BibleReponse,
+  LanguageReponse,
+} from "../resolvers/Bible/BibleBrain/types";
 
 class BibleBrainService {
   constructor() {}
@@ -42,6 +45,29 @@ class BibleBrainService {
     const { data } = await axios<any>(config);
     const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
 
+    return camelCaseData;
+  }
+
+  /**
+   * Will return all available titles by language code
+   * You can specify media to exclude or include
+   */
+  public async getAvailableBibles(
+    mediaExclude?: string,
+    mediaInclude?: string,
+    languageCode?: string,
+    page?: number
+  ) {
+    // set url with correct params
+    const url = `https://4.dbt.io/api/bibles?page=${page}
+        ${languageCode ? `&language_code=${languageCode}` : ""}
+        ${mediaExclude ? `&media_excluded=${mediaExclude}` : ""}
+        ${mediaInclude ? `&media=${mediaInclude}` : ""}`;
+
+    config.url = url;
+
+    const { data } = await axios<any>(config);
+    const camelCaseData: BibleReponse = underscoreToCamelCase(data);
     return camelCaseData;
   }
 }
