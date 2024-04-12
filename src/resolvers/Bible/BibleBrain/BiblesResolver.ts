@@ -19,6 +19,12 @@ export class BibleArgs {
   page?: number;
 }
 
+@InputType()
+export class BibleSearchArgs extends BibleArgs {
+  @Field({ nullable: true })
+  search?: string;
+}
+
 /**
  * Resolver to get all possible languages
  */
@@ -33,6 +39,32 @@ export class BiblesResolver {
         options.mediaExclude,
         options.mediaInclude,
         options.languageCode,
+        options.page
+      );
+
+      return data;
+    } catch (err) {
+      const error: FieldError = {
+        message: err,
+        field: "Calling to get all languages available in Bible Brain",
+      };
+
+      return error;
+    }
+  }
+
+  @Query(() => BibleReponse || FieldError)
+  async searchListOFBibles(
+    @Arg("options", () => BibleSearchArgs) options: BibleSearchArgs
+  ) {
+    const service = new BibleBrainService();
+
+    try {
+      const data = await service.searchAvailableBibles(
+        options.search,
+        // options.mediaExclude,
+        // options.mediaInclude,
+        // options.languageCode,
         options.page
       );
 
