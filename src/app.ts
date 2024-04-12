@@ -1,5 +1,4 @@
 import "reflect-metadata";
-import path from "path";
 import fastify, { FastifyInstance } from "fastify";
 import { ApolloServer } from "apollo-server-fastify";
 import {
@@ -12,13 +11,7 @@ import { buildSchema, NonEmptyArray } from "type-graphql";
 import { PubSub } from "graphql-subscriptions"; // have to use the graphql-subscriptions directly to
 import { WebSocketServer } from "ws";
 import { useServer } from "graphql-ws/lib/use/ws";
-import {
-  EntityClass,
-  AnyEntity,
-  EntityClassGroup,
-  EntitySchema,
-  MikroORM,
-} from "@mikro-orm/core";
+import { MikroORM } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
 import { OpenAI } from "langchain/llms/openai";
 import { ChatOpenAI } from "langchain/chat_models/openai";
@@ -43,14 +36,7 @@ class App {
 
   constructor(appInit: {
     port: number;
-    entities:
-      | (
-          | string
-          | EntityClass<AnyEntity<any>>
-          | EntityClassGroup<AnyEntity<any>>
-          | EntitySchema<any, undefined>
-        )[]
-      | undefined;
+    mikroOrmConfig: Parameters<typeof MikroORM.init<MongoDriver>>[0];
     resolvers: NonEmptyArray<Function> | NonEmptyArray<string>;
   }) {
     // setting app instance, port number
@@ -61,18 +47,7 @@ class App {
     this.resolvers = appInit.resolvers;
 
     // mikro orm's mongodb configure
-    this.mikroConfig = {
-      migrations: {
-        path: path.join(__dirname, "./migrations"), // path to the folder with migrations
-        // pattern: /^[\w-]+\d+\.[tj]s$/, // this was causing error idk why
-      },
-      entities: appInit.entities,
-      type: "mongo",
-      dbName: "daylybread",
-      clientUrl: process.env.MONGODBCLIENTURL,
-      debug: true,
-      implicitTransactions: true,
-    };
+    this.mikroConfig = appInit.mikroOrmConfig;
   }
 
   // function to start app

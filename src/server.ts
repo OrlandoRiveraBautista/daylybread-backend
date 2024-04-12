@@ -1,15 +1,8 @@
 import App from "./app";
 import dotenv from "dotenv";
 
-/* Entities */
-import { User } from "./entities/User";
-import { Translation } from "./entities/Bible/Translation";
-import { Test } from "./entities/Test";
-import { Book } from "./entities/Bible/Book";
-import { Chapter } from "./entities/Bible/Chapter";
-import { Verse } from "./entities/Bible/Verse";
-import { Bookmark } from "./entities/Bookmark";
-import { AIMessage } from "./entities/AIMemory";
+/* Miroorm config */
+import mikroOrmConfig from "./mikro-orm.config";
 
 /* Resolvers */
 import { ExampleResolver } from "./resolvers/example";
@@ -32,16 +25,7 @@ dotenv.config();
 const server = async () => {
   const app = new App({
     port: process.env.PORT ? Number.parseInt(process.env.PORT) : 5001,
-    entities: [
-      User,
-      Translation,
-      Book,
-      Chapter,
-      Verse,
-      Test,
-      Bookmark,
-      AIMessage,
-    ],
+    mikroOrmConfig: mikroOrmConfig,
     resolvers: [
       ExampleResolver,
       AuthResolver,
