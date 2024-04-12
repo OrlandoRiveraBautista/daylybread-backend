@@ -39,6 +39,9 @@ class BibleBrainService {
     mediaInclude?: string
   ) {
     // set url pased on if the user picked a country or not
+    /**
+     * ! 3/29/2024 mediaInclude is down
+     */
     const url = `https://4.dbt.io/api/languages/search/${search}?v=4
     ${mediaInclude ? `&set_type_code=${mediaInclude}` : ""}`;
 
@@ -69,6 +72,25 @@ class BibleBrainService {
     config.url = url;
 
     const { data } = await axios<any>(config);
+    const camelCaseData: BibleReponse = underscoreToCamelCase(data);
+    return camelCaseData;
+  }
+
+  public async searchAvailableBibles(
+    search?: string,
+    // mediaExclude?: string,
+    // mediaInclude?: string,
+    // languageCode?: string,
+    page?: number
+  ) {
+    // set url with correct params
+    const url = `https://4.dbt.io/api/bibles/search/${search}?v=4page=${page}
+        `;
+
+    config.url = url;
+
+    const { data } = await axios<any>(config);
+    console.log(data);
     const camelCaseData: BibleReponse = underscoreToCamelCase(data);
     return camelCaseData;
   }
