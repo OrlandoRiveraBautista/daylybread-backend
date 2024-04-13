@@ -1,4 +1,5 @@
 import path from "path";
+import dotenv from "dotenv";
 import { MikroORM } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
 
@@ -11,6 +12,8 @@ import { Chapter } from "./entities/Bible/Chapter";
 import { Verse } from "./entities/Bible/Verse";
 import { Bookmark } from "./entities/Bookmark";
 import { AIMessage } from "./entities/AIMemory";
+
+dotenv.config();
 
 const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
   migrations: {
