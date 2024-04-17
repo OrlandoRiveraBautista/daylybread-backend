@@ -1,15 +1,8 @@
 import App from "./app";
 import dotenv from "dotenv";
 
-/* Entities */
-import { User } from "./entities/User";
-import { Translation } from "./entities/Bible/Translation";
-import { Test } from "./entities/Test";
-import { Book } from "./entities/Bible/Book";
-import { Chapter } from "./entities/Bible/Chapter";
-import { Verse } from "./entities/Bible/Verse";
-import { Bookmark } from "./entities/Bookmark";
-import { AIMessage } from "./entities/AIMemory";
+/* Miroorm config */
+import mikroOrmConfig from "./mikro-orm.config";
 
 /* Resolvers */
 import { ExampleResolver } from "./resolvers/example";
@@ -21,25 +14,25 @@ import { OpenAiTestResolver } from "./resolvers/OpenAI/test";
 import { AuthResolver } from "./resolvers/AuthResolver";
 import { UserResolver } from "./resolvers/UserResolver";
 import { BookmarkResolver } from "./resolvers/BookmarkResolver";
+// Bible Brain Resolvers
+import { LanguagesResolver } from "./resolvers/Bible/BibleBrain/LanguagesResolver";
+import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
+import { BooksResolver } from "./resolvers/Bible/BibleBrain/BooksResolver";
+import { VersesResolver } from "./resolvers/Bible/BibleBrain/VersesResolver";
 
 dotenv.config();
 
 const server = async () => {
   const app = new App({
     port: process.env.PORT ? Number.parseInt(process.env.PORT) : 5001,
-    entities: [
-      User,
-      Translation,
-      Book,
-      Chapter,
-      Verse,
-      Test,
-      Bookmark,
-      AIMessage,
-    ],
+    mikroOrmConfig: mikroOrmConfig,
     resolvers: [
       ExampleResolver,
       AuthResolver,
+      LanguagesResolver,
+      BiblesResolver,
+      BooksResolver,
+      VersesResolver,
       TranslationResolver,
       BookResolver,
       ChapterResolver,

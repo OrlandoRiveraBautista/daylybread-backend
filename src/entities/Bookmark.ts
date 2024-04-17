@@ -10,6 +10,7 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
 import { User } from "./User";
 import { Verse } from "./Bible/Verse";
+import { BBVerse } from "../misc/biblebrain/verseTypes";
 
 @Entity()
 @ObjectType()
@@ -32,9 +33,17 @@ export class Bookmark {
 
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
-  note?: string;
+  bibleId?: string;
+
+  @Field(() => [BBVerse], { nullable: true })
+  @Property({ nullable: true })
+  newVerses?: BBVerse[];
 
   @Field(() => [Verse])
   @ManyToMany(() => Verse)
   verses = new Collection<Verse>(this);
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  note?: string;
 }
