@@ -8,6 +8,7 @@ import { InputType, Field, ObjectType } from "type-graphql";
 import { FieldError } from "./entities/Errors/FieldError";
 import { User } from "./entities/User";
 import { Bookmark } from "./entities/Bookmark";
+import { GraphQLScalarType, Kind } from "graphql";
 
 export type MyContext = {
   request: FastifyRequest;
@@ -68,3 +69,24 @@ export class GetBookmarkResponse {
   @Field(() => [Bookmark], { nullable: true })
   results?: Bookmark[];
 }
+
+export const JSONScalar = new GraphQLScalarType({
+  name: "JSON",
+  description: "Custom scalar type for representing JSON data",
+  parseValue(value: any) {
+    return JSON.parse(value);
+  },
+  serialize(value: any) {
+    return value;
+  },
+  parseLiteral(ast) {
+    switch (ast.kind) {
+      case Kind.STRING:
+        return JSON.parse(ast.value);
+      case Kind.OBJECT:
+        throw new Error("Invalid JSON object");
+      default:
+        return null;
+    }
+  },
+});

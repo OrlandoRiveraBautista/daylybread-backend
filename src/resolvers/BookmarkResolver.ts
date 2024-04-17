@@ -16,18 +16,21 @@ import {
 } from "../types";
 import { User } from "../entities/User";
 import { Bookmark } from "../entities/Bookmark";
-import { Verse } from "../entities/Bible/Verse";
 import { ObjectId } from "@mikro-orm/mongodb";
+import { BBVerse } from "../misc/biblebrain/verseTypes";
 
 /* Interfaces */
 
 @InputType()
 class BookmarkOptions {
+  @Field(() => String, { nullable: true })
+  bibleId?: string;
+
   @Field(() => [String], { nullable: true })
-  verses?: string[] | undefined; // will be sent as stringified json
+  verses?: string[]; // will be sent as stringified json
 
   @Field(() => String, { nullable: true })
-  note?: string | undefined;
+  note?: string;
 }
 
 @Resolver()
@@ -72,30 +75,21 @@ export class BookmarkResolver {
       return error;
     }
 
-    // find all verse
-    const chosenVerses = await em.find(Verse, {
-      $and: [{ bibleId: { $in: options.verses } }],
-    });
+    const parsersedVerses = options.verses?.map(
+      (verse) => JSON.parse(verse) as BBVerse
+    );
 
     // create new bookmark object
     const newBookmark = em.create(Bookmark, {
       author: user,
+      bibleId: options.bibleId,
       note: options.note,
+      newVerses: parsersedVerses,
     });
 
-    // loop through the chosen verses
-    Object.entries(chosenVerses).forEach(([_, verse]) => {
-      try {
-        // try to add the refernce of the verses
-        newBookmark.verses.add(em.getReference(Verse, verse._id));
-      } catch (err) {
-        console.log(err);
-        throw err;
-      }
-    });
-
+    // try to save the changes
     try {
-      await em.persistAndFlush([newBookmark, ...chosenVerses]);
+      await em.persistAndFlush(newBookmark);
     } catch (err) {
       throw err;
     }
