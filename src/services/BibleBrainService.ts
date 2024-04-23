@@ -4,12 +4,29 @@ import { underscoreToCamelCase } from "../utility";
 import {
   BibleReponse,
   BookResponse,
+  CopyrightResponse,
   LanguageReponse,
   VerseResponse,
 } from "../resolvers/Bible/BibleBrain/types";
+import { Class } from "type-fest";
 
 class BibleBrainService {
   constructor() {}
+
+  /**
+   * Function to call the bible brain service specifying the url and response type
+   * @param url
+   * @param responseType
+   * @returns An object with the response type you have provided
+   */
+  private async callService(url: string, responseType: Class<any>) {
+    config.url = url;
+
+    const { data } = await axios<any>(config);
+    const camelCaseData: typeof responseType = underscoreToCamelCase(data);
+
+    return camelCaseData;
+  }
 
   /**
    * Will return all available languages.
@@ -21,13 +38,9 @@ class BibleBrainService {
       ? `https://4.dbt.io/api/languages?include_alt_names=true&country=${country}&v=4&page=${page}`
       : `https://4.dbt.io/api/languages?v=4&page=${page}`;
 
-    config.url = url;
+    const response = await this.callService(url, LanguageReponse);
 
-    const { data } = await axios<any>(config);
-
-    const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
-
-    return camelCaseData;
+    return response;
   }
 
   /**
@@ -45,12 +58,9 @@ class BibleBrainService {
     const url = `https://4.dbt.io/api/languages/search/${search}?v=4
     ${mediaInclude ? `&set_type_code=${mediaInclude}` : ""}`;
 
-    config.url = url;
+    const response = await this.callService(url, LanguageReponse);
 
-    const { data } = await axios<any>(config);
-    const camelCaseData: LanguageReponse = underscoreToCamelCase(data);
-
-    return camelCaseData;
+    return response;
   }
 
   /**
@@ -69,30 +79,18 @@ class BibleBrainService {
         ${mediaExclude ? `&media_excluded=${mediaExclude}` : ""}
         ${mediaInclude ? `&media=${mediaInclude}` : ""}`;
 
-    config.url = url;
+    const response = await this.callService(url, BibleReponse);
 
-    const { data } = await axios<any>(config);
-    const camelCaseData: BibleReponse = underscoreToCamelCase(data);
-    return camelCaseData;
+    return response;
   }
 
-  public async searchAvailableBibles(
-    search?: string,
-    // mediaExclude?: string,
-    // mediaInclude?: string,
-    // languageCode?: string,
-    page?: number
-  ) {
+  public async searchAvailableBibles(search?: string, page?: number) {
     // set url with correct params
-    const url = `https://4.dbt.io/api/bibles/search/${search}?v=4page=${page}
-        `;
+    const url = `https://4.dbt.io/api/bibles/search/${search}?v=4page=${page}`;
 
-    config.url = url;
+    const response = await this.callService(url, BibleReponse);
 
-    const { data } = await axios<any>(config);
-    console.log(data);
-    const camelCaseData: BibleReponse = underscoreToCamelCase(data);
-    return camelCaseData;
+    return response;
   }
 
   /**
@@ -102,12 +100,9 @@ class BibleBrainService {
     // set url pased on if the user picked a country or not
     const url = `https://4.dbt.io/api/bibles/${bibleId}/book?verify_content=true`;
 
-    config.url = url;
+    const response = await this.callService(url, BookResponse);
 
-    const { data } = await axios<any>(config);
-    const camelCaseData: BookResponse = underscoreToCamelCase(data);
-
-    return camelCaseData;
+    return response;
   }
 
   public async getAvailableVerse(
@@ -118,12 +113,17 @@ class BibleBrainService {
     // set url pased on if the user picked a country or not
     const url = `https://4.dbt.io/api/bibles/filesets/${bibleId}/${bookId}/${chapterNumber}`;
 
-    config.url = url;
+    const response = await this.callService(url, VerseResponse);
 
-    const { data } = await axios<any>(config);
+    return response;
+  }
 
-    const camelCaseData: VerseResponse = underscoreToCamelCase(data);
-    return camelCaseData;
+  public async getCopyright(bibleId: string) {
+    const url = `https://4.dbt.io/api/bibles/${bibleId}/copyright?&v=4`;
+
+    const response = await this.callService(url, CopyrightResponse);
+
+    return { data: response }; // copyright response a bit different
   }
 }
 
