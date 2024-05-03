@@ -19,6 +19,7 @@ import { LanguagesResolver } from "./resolvers/Bible/BibleBrain/LanguagesResolve
 import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
 import { BooksResolver } from "./resolvers/Bible/BibleBrain/BooksResolver";
 import { VersesResolver } from "./resolvers/Bible/BibleBrain/VersesResolver";
+import { CopyrightResolver } from "./resolvers/Bible/BibleBrain/CopyrightResolver";
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ const server = async () => {
       OpenAiTestResolver,
       UserResolver,
       BookmarkResolver,
+      CopyrightResolver,
     ],
   });
 

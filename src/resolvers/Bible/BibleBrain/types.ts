@@ -4,6 +4,7 @@ import { BBBible } from "../../../misc/biblebrain/bibleTypes";
 import { BBBook } from "../../../misc/biblebrain/bookTypes";
 import { BBVerse } from "../../../misc/biblebrain/verseTypes";
 import { ObjectType, Field } from "type-graphql";
+import { BBCopyright } from "../../../misc/biblebrain/copyrightTypes";
 
 @ObjectType()
 export class LanguageReponse {
@@ -33,4 +34,10 @@ export class BookResponse {
 export class VerseResponse {
   @Field(() => [BBVerse])
   data: [BBVerse];
+}
+
+@ObjectType()
+export class CopyrightResponse {
+  @Field(() => [BBCopyright])
+  data: [BBCopyright];
 }
