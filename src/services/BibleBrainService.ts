@@ -2,6 +2,7 @@ import axios from "axios";
 import config from "../misc/biblebrain/axiosConfig";
 import { underscoreToCamelCase } from "../utility";
 import {
+  AudioMediaResponse,
   BibleReponse,
   BookResponse,
   CopyrightResponse,
@@ -124,6 +125,18 @@ class BibleBrainService {
     const response = await this.callService(url, CopyrightResponse);
 
     return { data: response }; // copyright response a bit different
+  }
+
+  public async getMedia(
+    filesetId: string,
+    bookId: string,
+    chapterNumber: number
+  ) {
+    const url = `https://4.dbt.io/api/bibles/filesets/${filesetId}/${bookId}/${chapterNumber}`;
+
+    const response = await this.callService(url, AudioMediaResponse);
+
+    return response;
   }
 }
 
