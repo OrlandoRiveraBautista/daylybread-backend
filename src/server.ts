@@ -14,6 +14,7 @@ import { OpenAiTestResolver } from "./resolvers/OpenAI/test";
 import { AuthResolver } from "./resolvers/AuthResolver";
 import { UserResolver } from "./resolvers/UserResolver";
 import { BookmarkResolver } from "./resolvers/BookmarkResolver";
+import { HistoryResolver } from "./resolvers/Bible/HistoryResolver";
 // Bible Brain Resolvers
 import { LanguagesResolver } from "./resolvers/Bible/BibleBrain/LanguagesResolver";
 import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
@@ -42,6 +43,7 @@ const server = async () => {
       UserResolver,
       BookmarkResolver,
       CopyrightResolver,
+      HistoryResolver,
     ],
   });
 
