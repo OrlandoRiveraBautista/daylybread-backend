@@ -1,4 +1,4 @@
-import { ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
+import { Entity, ManyToOne, PrimaryKey, Property } from "@mikro-orm/core";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
 import { User } from "../User";
@@ -23,9 +23,10 @@ export class History {
 
   @Field(() => String)
   @Property({ type: "date" })
-  viewedAt = new Date();
+  viewedAt? = new Date();
 }
 
+@Entity()
 @ObjectType()
 export class BibleHistory {
   @Field(() => ID)
@@ -36,12 +37,15 @@ export class BibleHistory {
   @ManyToOne(() => User)
   owner: User;
 
-  @Field(() => [BibleHistory])
-  history: BibleHistory[];
+  @Field(() => [History])
+  @Property({ type: History })
+  history: History[];
 
-  @Field(() => Date)
-  createdAt: Date;
+  @Field(() => String)
+  @Property({ type: "date" })
+  createdAt? = new Date();
 
-  @Field(() => Date)
-  updatedAt: Date;
+  @Field(() => String)
+  @Property({ type: "date", onUpdate: () => new Date() })
+  updatedAt? = new Date();
 }
