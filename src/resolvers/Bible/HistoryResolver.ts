@@ -97,6 +97,7 @@ export class HistoryResolver {
       userHistory = em.create(BibleHistory, {
         owner: user,
         history: [currentHistory],
+        current: true,
       });
     } else {
       console.log("I am updating");
