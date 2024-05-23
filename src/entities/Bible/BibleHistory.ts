@@ -41,6 +41,10 @@ export class BibleHistory {
   @Property({ type: History })
   history: History[];
 
+  @Field(() => Boolean)
+  @Property()
+  current: boolean;
+
   @Field(() => String)
   @Property({ type: "date" })
   createdAt? = new Date();
