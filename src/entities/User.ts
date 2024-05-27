@@ -10,6 +10,7 @@ import { Field, ID, InputType, ObjectType } from "type-graphql";
 
 /* Entities */
 import { Bookmark } from "./Bookmark";
+import { BibleHistory } from "./Bible/BibleHistory";
 
 @Entity()
 @ObjectType()
@@ -60,6 +61,10 @@ export class User {
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
   bioText?: string;
+
+  @Field(() => [BibleHistory], { nullable: true })
+  @OneToMany(() => BibleHistory, (bibleHistory) => bibleHistory.owner)
+  bibleHistory = new Collection<BibleHistory>(this);
   // we will store user images in another table
   // this table will reference the user by id and have the image url from s3 and have a default boolean field to specify the profile pic
 }

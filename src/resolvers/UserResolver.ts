@@ -25,7 +25,11 @@ export class UserResolver {
     }
 
     // find the user
-    const user = await em.findOne(User, { _id: req.userId });
+    const user = await em.findOne(
+      User,
+      { _id: req.userId },
+      { populate: ["bibleHistory"] }
+    );
 
     // throw error if user is not found
     if (!user) {

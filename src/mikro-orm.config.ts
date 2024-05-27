@@ -12,6 +12,7 @@ import { Chapter } from "./entities/Bible/Chapter";
 import { Verse } from "./entities/Bible/Verse";
 import { Bookmark } from "./entities/Bookmark";
 import { AIMessage } from "./entities/AIMemory";
+import { BibleHistory } from "./entities/Bible/BibleHistory";
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
     Test,
     Bookmark,
     AIMessage,
+    BibleHistory,
   ],
   type: "mongo",
   dbName: "daylybread",
