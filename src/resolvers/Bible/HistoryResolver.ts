@@ -16,7 +16,7 @@ import { BibleHistory, History } from "../../entities/Bible/BibleHistory";
 @InputType()
 class HistoryOptions {
   @Field()
-  bibleId: string;
+  bibleAbbr: string;
 
   @Field()
   bookId: string;
@@ -81,7 +81,7 @@ export class HistoryResolver {
 
     // create the history for the current text that is being accessed
     const currentHistory: History = {
-      bibleId: options.bibleId,
+      bibleAbbr: options.bibleAbbr,
       bookId: options.bookId,
       chapterNumber: options.chapterNumber,
       language: options.language,
@@ -104,7 +104,6 @@ export class HistoryResolver {
       em.assign(userHistory, {
         history: [currentHistory, ...userHistory.history],
       });
-      // userHistory.history.push(currentHistory);
     }
 
     // save the changes
