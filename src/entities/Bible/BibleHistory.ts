@@ -11,7 +11,7 @@ export class History {
 
   @Field(() => String)
   @Property()
-  bibleId: string;
+  bibleAbbr: string;
 
   @Field(() => String)
   @Property()
