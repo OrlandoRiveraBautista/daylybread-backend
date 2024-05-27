@@ -100,10 +100,9 @@ export class HistoryResolver {
         current: true,
       });
     } else {
-      console.log("I am updating");
       // update the userHistory
       em.assign(userHistory, {
-        history: [...userHistory.history, currentHistory],
+        history: [currentHistory, ...userHistory.history],
       });
       // userHistory.history.push(currentHistory);
     }
