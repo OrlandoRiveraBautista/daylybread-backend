@@ -1,6 +1,6 @@
 import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { AudioMediaResponse } from "./types";
+import { AudioMediaResponse, MediaTimestampResponse } from "./types";
 import BibleBrainService from "../../../services/BibleBrainService";
 
 /* --- Arguments (Args) Object Input Types --- */
@@ -36,8 +36,6 @@ export class MediaResolver {
 
     const service = new BibleBrainService();
 
-    console.log(service);
-
     try {
       const data = await service.getMedia(
         options.filesetId,
@@ -49,6 +47,38 @@ export class MediaResolver {
       const error: FieldError = {
         message: err,
         field: "Calling to get media information from bible brain.",
+      };
+
+      return error;
+    }
+  }
+
+  @Query(() => MediaTimestampResponse || FieldError)
+  async getMediaTimestamps(
+    @Arg("options", () => AudioMediaArgs) options: AudioMediaArgs
+  ) {
+    if (!options.filesetId) {
+      const error: FieldError = {
+        message: "Please specify a filesetId",
+        field: "filesetId",
+      };
+
+      return error;
+    }
+
+    const service = new BibleBrainService();
+
+    try {
+      const data = await service.getMediaTimestamps(
+        options.filesetId,
+        options.bookId,
+        options.chapterNumber
+      );
+      return data;
+    } catch (err) {
+      const error: FieldError = {
+        message: err,
+        field: "Calling to get media timestamp information from bible brain.",
       };
 
       return error;
