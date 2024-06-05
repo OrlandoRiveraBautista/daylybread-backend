@@ -32,3 +32,18 @@ export class BBAudioFile {
   @Field({ nullable: true })
   duration?: number;
 }
+
+@ObjectType()
+export class BBVerseTimestamp {
+  @Field({ nullable: true })
+  book?: string;
+
+  @Field({ nullable: true })
+  chapter?: string;
+
+  @Field({ nullable: true })
+  verse_start?: string;
+
+  @Field({ nullable: true })
+  timestamp?: number;
+}
