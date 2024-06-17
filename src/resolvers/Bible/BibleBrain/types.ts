@@ -5,6 +5,10 @@ import { BBBook } from "../../../misc/biblebrain/bookTypes";
 import { BBVerse } from "../../../misc/biblebrain/verseTypes";
 import { ObjectType, Field } from "type-graphql";
 import { BBCopyright } from "../../../misc/biblebrain/copyrightTypes";
+import {
+  BBAudioFile,
+  BBVerseTimestamp,
+} from "../../../misc/biblebrain/mediaTypes";
 
 @ObjectType()
 export class LanguageReponse {
@@ -40,4 +44,16 @@ export class VerseResponse {
 export class CopyrightResponse {
   @Field(() => [BBCopyright])
   data: [BBCopyright];
+}
+
+@ObjectType()
+export class AudioMediaResponse {
+  @Field(() => [BBAudioFile])
+  data: [BBAudioFile];
+}
+
+@ObjectType()
+export class MediaTimestampResponse {
+  @Field(() => [BBVerseTimestamp])
+  data: [BBVerseTimestamp];
 }
