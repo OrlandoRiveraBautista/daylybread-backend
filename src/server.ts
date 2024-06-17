@@ -21,6 +21,7 @@ import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
 import { BooksResolver } from "./resolvers/Bible/BibleBrain/BooksResolver";
 import { VersesResolver } from "./resolvers/Bible/BibleBrain/VersesResolver";
 import { CopyrightResolver } from "./resolvers/Bible/BibleBrain/CopyrightResolver";
+import { MediaResolver } from "./resolvers/Bible/BibleBrain/MediaResolver";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ const server = async () => {
       BookmarkResolver,
       CopyrightResolver,
       HistoryResolver,
+      MediaResolver,
     ],
   });
 

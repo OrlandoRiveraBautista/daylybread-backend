@@ -2,6 +2,7 @@ import axios from "axios";
 import config from "../misc/biblebrain/axiosConfig";
 import { underscoreToCamelCase } from "../utility";
 import {
+  AudioMediaResponse,
   BibleReponse,
   BookResponse,
   CopyrightResponse,
@@ -84,6 +85,10 @@ class BibleBrainService {
     return response;
   }
 
+  /**
+   * Will return all available titles for a search
+   * !This is currently not in use and should be implemented with the history in the frontend or something
+   */
   public async searchAvailableBibles(search?: string, page?: number) {
     // set url with correct params
     const url = `https://4.dbt.io/api/bibles/search/${search}?v=4page=${page}`;
@@ -105,6 +110,9 @@ class BibleBrainService {
     return response;
   }
 
+  /**
+   * Will return all available verse for a give chapter
+   */
   public async getAvailableVerse(
     bibleId: string,
     bookId: string,
@@ -118,12 +126,45 @@ class BibleBrainService {
     return response;
   }
 
+  /**
+   * Will return the copyright information for a given bible by the bibleId
+   */
   public async getCopyright(bibleId: string) {
     const url = `https://4.dbt.io/api/bibles/${bibleId}/copyright?&v=4`;
 
     const response = await this.callService(url, CopyrightResponse);
 
     return { data: response }; // copyright response a bit different
+  }
+
+  /**
+   * Will return all available media for a given filesetId, bookId, and chapter number
+   */
+  public async getMedia(
+    filesetId: string,
+    bookId: string,
+    chapterNumber: number
+  ) {
+    const url = `https://4.dbt.io/api/bibles/filesets/${filesetId}/${bookId}/${chapterNumber}`;
+
+    const response = await this.callService(url, AudioMediaResponse);
+
+    return response;
+  }
+
+  /**
+   * Will return all available timestamps for a give filesetId, bookId, and chapter number
+   */
+  public async getMediaTimestamps(
+    filesetId: string,
+    bookId: string,
+    chapterNumber: number
+  ) {
+    const url = `https://4.dbt.io/api/timestamps/${filesetId}/${bookId}/${chapterNumber}`;
+
+    const response = await this.callService(url, AudioMediaResponse);
+
+    return response;
   }
 }
 
