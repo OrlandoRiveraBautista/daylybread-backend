@@ -1,4 +1,12 @@
-import { Arg, Ctx, Mutation, Query, Resolver } from "type-graphql";
+import {
+  Arg,
+  Ctx,
+  Field,
+  InputType,
+  Mutation,
+  Query,
+  Resolver,
+} from "type-graphql";
 import bcrypt from "bcrypt";
 
 /* Types */
@@ -10,6 +18,13 @@ import { User } from "../entities/User";
 /* Utilities */
 import { createTokens } from "../auth";
 import { addTime } from "../utility";
+
+/* --- Arguments (Args) Object Input Types --- */
+@InputType()
+export class LogInWithGoogleArgs {
+  @Field()
+  credentials: string;
+}
 
 const validateEmail = (email: string) => {
   return email.match(
@@ -180,6 +195,26 @@ export class AuthResolver {
     });
 
     return { user: newUser };
+  }
+
+  @Mutation(() => UserResponse)
+  async loginWithGoogle(
+    @Arg("options", () => LogInWithGoogleArgs) options: LogInWithGoogleArgs,
+    @Ctx() { em, request }: MyContext
+  ): Promise<UserResponse> {
+    const { credentials } = options;
+
+    if (!credentials)
+      return {
+        errors: [
+          {
+            field: "Logging in with Google",
+            message: "Please include Google user credentials.",
+          },
+        ],
+      };
+
+    return { user: {} };
   }
 
   /**
