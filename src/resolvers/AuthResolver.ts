@@ -203,8 +203,10 @@ export class AuthResolver {
     @Arg("options", () => LogInWithGoogleArgs) options: LogInWithGoogleArgs,
     @Ctx() { em, reply }: MyContext
   ): Promise<UserResponse | any> {
+    // decunstruct the credentials from the payload
     const { credentials } = options;
 
+    // check if creds are missing and return an error
     if (!credentials)
       return {
         errors: [
@@ -215,12 +217,17 @@ export class AuthResolver {
         ],
       };
 
+    // decode the credentials to a json
     const decodedCredentials = decode(credentials) as JwtPayload;
+    // deconstruct the needed values to find or create a user
     const { email, given_name, family_name } = decodedCredentials;
 
+    // try to find a user
     let user = await em.findOne(User, { email: email });
 
+    // check if no user was found
     if (!user) {
+      // create a user object
       user = em.create(User, {
         email,
         firstName: given_name,
@@ -254,8 +261,10 @@ export class AuthResolver {
       }
     }
 
+    // create tokens
     const { refreshToken, accessToken } = createTokens(user);
 
+    // set tokens to cookies
     reply.cookie("refresh-token", refreshToken, {
       expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
       sameSite: "none",
