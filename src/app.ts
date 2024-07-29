@@ -68,12 +68,16 @@ class App {
 
     // Open AI configuration
     const openai = new OpenAI({ openAIApiKey: process.env.OPENAI_API_KEY });
-    const chatgpt = new ChatOpenAI({ temperature: 0, streaming: true });
+    const chatgpt = new ChatOpenAI({
+      temperature: 0,
+      streaming: true,
+      modelName: "gpt-4o-mini",
+    });
 
     // Chat prompt template
     const chatPrompt = ChatPromptTemplate.fromPromptMessages([
       SystemMessagePromptTemplate.fromTemplate(
-        "The following is a friendly conversation between a human and an AI (named BreadCrumbs). The AI is talkative and provides lots of specific details from the bible, KJV in english and RVR in spanish . If the AI does not know the answer to a question, it truthfully says it does not know."
+        "The following is a friendly conversation between a human and an AI (named BreadCrumbs). The AI is talkative and provides lots of specific details from the Bible, using the provided version or defaulting to RVR in Spanish and KJV in English. If the AI does not know the answer to a question, it truthfully says it does not know."
       ),
       new MessagesPlaceholder("history"),
       HumanMessagePromptTemplate.fromTemplate("{input}"),
