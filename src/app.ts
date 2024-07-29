@@ -71,7 +71,7 @@ class App {
     const chatgpt = new ChatOpenAI({
       temperature: 0,
       streaming: true,
-      modelName: "gpt-4o",
+      modelName: "gpt-4o-mini",
     });
 
     // Chat prompt template
