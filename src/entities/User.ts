@@ -31,8 +31,8 @@ export class User {
   @Property({ unique: true })
   email!: string;
 
-  @Property()
-  password!: string;
+  @Property({ nullable: true })
+  password?: string;
 
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
