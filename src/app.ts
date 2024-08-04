@@ -151,6 +151,7 @@ class App {
               "https://daylybread-marketr.web.app", // ----- old prod
               "https://daylybread-dev.web.app", // ------ dev
               "https://app.daylybread.com", // ---- prod
+              "https://bible.daylybread.com", // ---- prod
             ],
             credentials: true,
           },
