@@ -6,9 +6,9 @@ import {
   PubSub,
   Subscription,
   Root,
-  Publisher,
   InputType,
   Field,
+  PubSubEngine,
 } from "type-graphql";
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
@@ -27,9 +27,12 @@ export class GptArgs {
 @Resolver()
 export class OpenAiTestResolver {
   @Subscription(() => String, {
-    topics: "AI_CHAT_RESPONSE_UPDATED",
+    topics: ({ args }) => `AI_CHAT_RESPONSE_UPDATED_${args.deviceId}`,
   })
-  aiChatReponseUpdated(@Root() chatMessage: string): string {
+  aiChatReponseUpdated(
+    @Root() chatMessage: string,
+    @Arg("deviceId") _deviceId: string
+  ): string {
     return chatMessage;
   }
 
@@ -37,7 +40,7 @@ export class OpenAiTestResolver {
   async getOpen(
     @Arg("options", () => GptArgs) options: GptArgs,
     @Ctx() context: MyContext,
-    @PubSub("AI_CHAT_RESPONSE_UPDATED") publish: Publisher<String>
+    @PubSub() pubsub: PubSubEngine
   ): Promise<String | FieldError | undefined> {
     if (!options.promptText) return; // check to see if there is anything in the prompt
 
@@ -51,7 +54,10 @@ export class OpenAiTestResolver {
         callbacks: [
           {
             async handleLLMNewToken(token: any) {
-              await publish(token);
+              await pubsub.publish(
+                `AI_CHAT_RESPONSE_UPDATED_${options.deviceId}`,
+                token
+              );
             },
           },
         ],
