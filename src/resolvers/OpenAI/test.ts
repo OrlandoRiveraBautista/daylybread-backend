@@ -27,11 +27,11 @@ export class GptArgs {
 @Resolver()
 export class OpenAiTestResolver {
   @Subscription(() => String, {
-    topics: ({ args }) => `AI_CHAT_RESPONSE_UPDATED_${args.deviceId}`,
+    topics: ({ args }) => `AI_CHAT_RESPONSE_UPDATED_${args.deviceId}`, // Dynamic naming for the subscription
   })
   aiChatReponseUpdated(
     @Root() chatMessage: string,
-    @Arg("deviceId") _deviceId: string
+    @Arg("deviceId") _deviceId: string // Need to set this so that the front end schema is correct
   ): string {
     return chatMessage;
   }
@@ -44,16 +44,21 @@ export class OpenAiTestResolver {
   ): Promise<String | FieldError | undefined> {
     if (!options.promptText) return; // check to see if there is anything in the prompt
 
+    // Set up the chatgpt instance
     await setupChatGpt(context, options.deviceId);
 
     // call ai with prompt text
     let response;
     try {
+      // Try to call the chatgpt model
       response = await context.chatgpt.call({
-        input: options.promptText,
+        input: options.promptText, // Pass in the user prompt
+        // Add call backs for handling streaming
         callbacks: [
           {
+            // Call one of the callbacks from openai to handle every token/stream that comes in
             async handleLLMNewToken(token: any) {
+              // push it to the correct subscriber depending on their device
               await pubsub.publish(
                 `AI_CHAT_RESPONSE_UPDATED_${options.deviceId}`,
                 token
