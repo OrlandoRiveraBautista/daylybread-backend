@@ -108,7 +108,6 @@ export class HistoryResolver {
 
     // save the changes
     try {
-      console.log(userHistory);
       await em.persistAndFlush(userHistory);
       return { results: true };
     } catch (err) {
