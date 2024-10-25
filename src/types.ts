@@ -1,5 +1,5 @@
 import { EntityManager } from "@mikro-orm/mongodb";
-import { OpenAI } from "langchain/llms/openai";
+import { OpenAI } from "@langchain/openai";
 import { ConversationChain } from "langchain/chains";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { InputType, Field, ObjectType } from "type-graphql";

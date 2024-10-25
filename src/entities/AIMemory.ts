@@ -8,7 +8,7 @@ import {
 import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
 import { User } from "./User";
-import { StoredMessage } from "langchain/schema";
+import { StoredMessage } from "@langchain/core/messages";
 
 @Entity()
 @ObjectType()
