@@ -1,9 +1,6 @@
 import { MongoDriver, MongoEntityManager } from "@mikro-orm/mongodb";
-import {
-  BaseListChatMessageHistory,
-  BaseMessage,
-  StoredMessage,
-} from "langchain/schema";
+import { BaseMessage, StoredMessage } from "@langchain/core/messages";
+import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { AIMessage } from "../entities/AIMemory";
 import {
   mapChatMessagesToStoredMessages,
