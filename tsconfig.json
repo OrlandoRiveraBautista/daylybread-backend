@@ -5,7 +5,7 @@
     "lib": ["dom", "es2022", "esnext.asynciterable"],
     "sourceMap": true,
     "outDir": "./dist",
-    "moduleResolution": "node",
+    // "moduleResolution": "nodenext",
     "removeComments": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
