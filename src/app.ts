@@ -129,7 +129,8 @@ class App {
         reply,
         em: orm.em.fork(), // need to use a fork of em
         openai: openai,
-        chatgpt: chain,
+        chain: chain,
+        chatgpt,
       }),
     });
 
