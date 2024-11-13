@@ -1,14 +1,11 @@
-import {
-  Arg,
-  // Ctx,
-  Field,
-  ObjectType,
-  Query,
-  Resolver,
-} from "type-graphql";
+import { Arg, Ctx, Field, ObjectType, Query, Resolver } from "type-graphql";
 import Replicate from "replicate";
-// import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
+import { MyContext } from "../../types";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+
+const parser = new StringOutputParser();
 
 // Initialize the Flux-Schnell model
 const replicate = new Replicate();
@@ -26,8 +23,8 @@ class GenerateImageResponse {
 export class GenerateImageResolver {
   @Query(() => GenerateImageResponse)
   async generateImage(
-    @Arg("prompt") prompt: string
-    // @Ctx() { request }: MyContext
+    @Arg("prompt") prompt: string,
+    @Ctx() { chatgpt }: MyContext
   ): Promise<GenerateImageResponse> {
     // since I wil be using a non explicit value from request (userId)
     // I will declare a local req as any
@@ -47,13 +44,32 @@ export class GenerateImageResolver {
     //   return error;
     // }
 
-    const defaultPrompt = `Create a detailed, realistic illustration set in ancient biblical times, reflecting the cultural and architectural elements of the period. The scene should capture the mood and significance of the events in the passage, focusing on the key figures and their emotions. Use lighting and colors to enhance the atmosphere, whether it’s a miraculous moment, a peaceful scene, or a challenging event. Aim for accuracy in period clothing, landscapes, and artifacts to bring the story to life. Requirements: Must not include text in the image. You do not include text in the image. You are an expert at ilustrating the bible. Text: ${prompt}`;
+    const messages = [
+      new SystemMessage(
+        "With the given text, create a prompt for an text to image generator, specifically the flux-schnell engine. Make sure that its a vivid image. Do not give me any templating just the prompt. Also make sure that it is biblically active."
+      ),
+      new HumanMessage(prompt),
+    ];
+
+    const result = await chatgpt.invoke(messages);
+
+    const imageGeneratorPrompt = await parser.invoke(result);
+    console.log(imageGeneratorPrompt);
 
     try {
       const res = (await replicate.run("black-forest-labs/flux-schnell", {
-        input: { prompt: defaultPrompt },
+        input: {
+          prompt: imageGeneratorPrompt,
+          go_fast: true,
+          megapixels: "1",
+          num_outputs: 1,
+          aspect_ratio: "1:1",
+          output_format: "webp",
+          output_quality: 80,
+          num_inference_steps: 4,
+        },
       })) as string[]; // Pass the prompt for image generation
-      console.log("Generated Image URL:", Object.keys(res)); // Output the generated image URL
+      //   console.log("Generated Image URL:", Object.keys(res)); // Output the generated image URL
 
       return { generatedImage: res };
     } catch (error) {
