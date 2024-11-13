@@ -51,7 +51,7 @@ export class OpenAiTestResolver {
     let response;
     try {
       // Try to call the chatgpt model
-      response = await context.chatgpt.call({
+      response = await context.chain.call({
         input: options.promptText, // Pass in the user prompt
         // Add call backs for handling streaming
         callbacks: [
