@@ -28,7 +28,7 @@ import { MikroORMChatMessageHistory } from "../misc/mikroormMessageHistory";
 
 export const setupChatGpt = async (context: MyContext, deviceId: string) => {
   // variables needed for function
-  const chain = context.chatgpt;
+  const chain = context.chain;
   const memory = chain.memory as BufferWindowMemory;
   // generate a new ObjectId based on the IP address
   // const chatId = generateObjectIdFromString(ip.address());
