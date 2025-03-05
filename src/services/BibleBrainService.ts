@@ -9,7 +9,6 @@ import {
   LanguageReponse,
   VerseResponse,
 } from "../resolvers/Bible/BibleBrain/types";
-import { Class } from "type-fest";
 
 class BibleBrainService {
   constructor() {}
@@ -20,13 +19,16 @@ class BibleBrainService {
    * @param responseType
    * @returns An object with the response type you have provided
    */
-  private async callService(url: string, responseType: Class<any>) {
+  private async callService<T extends object>(
+    url: string,
+    responseType: new () => T
+  ): Promise<T> {
     config.url = url;
 
-    const { data } = await axios<any>(config);
-    const camelCaseData: typeof responseType = underscoreToCamelCase(data);
+    const { data } = await axios(config);
+    const camelCaseData = underscoreToCamelCase(data);
 
-    return camelCaseData;
+    return Object.assign(new responseType(), camelCaseData);
   }
 
   /**

@@ -2,7 +2,7 @@ import {
   BaseMessage,
   StoredMessage,
   mapStoredMessageToChatMessage,
-} from "langchain/schema";
+} from "@langchain/core/messages";
 
 /**
  * Transforms an array of `StoredMessage` instances into an array of

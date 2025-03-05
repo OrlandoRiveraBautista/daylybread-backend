@@ -13,14 +13,13 @@ import { WebSocketServer } from "ws";
 import { useServer } from "graphql-ws/lib/use/ws";
 import { MikroORM } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
-import { OpenAI } from "langchain/llms/openai";
-import { ChatOpenAI } from "langchain/chat_models/openai";
+import { OpenAI, ChatOpenAI } from "@langchain/openai";
 import {
   ChatPromptTemplate,
   HumanMessagePromptTemplate,
   MessagesPlaceholder,
   SystemMessagePromptTemplate,
-} from "langchain/prompts";
+} from "@langchain/core/prompts";
 import { ConversationChain } from "langchain/chains";
 import { BufferWindowMemory } from "langchain/memory";
 import { __prod__ } from "./constants";
