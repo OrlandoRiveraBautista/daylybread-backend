@@ -42,7 +42,39 @@ export class BiblesResolver {
         options.page
       );
 
-      return data;
+      // Filter and parse data
+      const filteredData = await Promise.all(
+        // Map through the api data
+        data.data.map(async (bible) => {
+          // Fail if the abbr is missing
+          if (!bible.abbr) return;
+
+          // Get the available books for the bible
+          const availableBooks = (await service.getAvailableBooks(bible.abbr))
+            .data;
+
+          let hasAP = false;
+          let otCount = 0;
+
+          availableBooks.forEach((book) => {
+            if (book.testament === "OT") otCount++;
+            if (book.testament === "AP") {
+              hasAP = true;
+              return; // Stop checking once an AP book is found
+            }
+          });
+
+          if (otCount === 46 || hasAP) return;
+
+          return bible;
+        })
+      );
+
+      // Filter out undefined values directly
+      return {
+        data: filteredData.flatMap((bible) => (bible ? [bible] : [])),
+        meta: data.meta,
+      };
     } catch (err) {
       const error: FieldError = {
         message: err,
