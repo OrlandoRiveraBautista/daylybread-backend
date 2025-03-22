@@ -15,6 +15,7 @@ import { AuthResolver } from "./resolvers/AuthResolver";
 import { UserResolver } from "./resolvers/UserResolver";
 import { BookmarkResolver } from "./resolvers/BookmarkResolver";
 import { HistoryResolver } from "./resolvers/Bible/HistoryResolver";
+import { BibleInteractionResolver } from "./resolvers/BibleInteractionResolver";
 // Bible Brain Resolvers
 import { LanguagesResolver } from "./resolvers/Bible/BibleBrain/LanguagesResolver";
 import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
@@ -46,6 +47,7 @@ const server = async () => {
       CopyrightResolver,
       HistoryResolver,
       MediaResolver,
+      BibleInteractionResolver,
     ],
   });
 
