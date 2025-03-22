@@ -4,6 +4,7 @@ import { underscoreToCamelCase } from "../utility";
 import {
   AudioMediaResponse,
   BibleReponse,
+  BiblesReponse,
   BookResponse,
   CopyrightResponse,
   LanguageReponse,
@@ -82,7 +83,7 @@ class BibleBrainService {
         ${mediaExclude ? `&media_excluded=${mediaExclude}` : ""}
         ${mediaInclude ? `&media=${mediaInclude}` : ""}`;
 
-    const response = await this.callService(url, BibleReponse);
+    const response = await this.callService(url, BiblesReponse);
 
     return response;
   }
@@ -93,7 +94,7 @@ class BibleBrainService {
    */
   public async searchAvailableBibles(search?: string, page?: number) {
     // set url with correct params
-    const url = `https://4.dbt.io/api/bibles/search/${search}?v=4page=${page}`;
+    const url = `https://4.dbt.io/api/bibles/${search}?v=4page=${page}`;
 
     const response = await this.callService(url, BibleReponse);
 
