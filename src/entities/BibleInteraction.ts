@@ -41,9 +41,9 @@ export class BibleInteraction {
   @Property()
   chapter: number;
 
-  @Field(() => Number)
+  @Field(() => [Number])
   @Property()
-  verse: number;
+  verses: number[];
 
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
