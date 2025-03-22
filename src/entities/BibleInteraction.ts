@@ -59,9 +59,9 @@ export class BibleInteraction {
 
   @Field(() => Date)
   @Property({ type: "date" })
-  createdAt = new Date();
+  createdAt? = new Date();
 
   @Field(() => Date, { nullable: true })
   @Property({ type: "date", onUpdate: () => new Date(), nullable: true })
-  updatedAt?: Date;
+  updatedAt? = new Date();
 }
