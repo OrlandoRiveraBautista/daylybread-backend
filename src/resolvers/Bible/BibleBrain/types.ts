@@ -20,9 +20,18 @@ export class LanguageReponse {
 }
 
 @ObjectType()
-export class BibleReponse {
+export class BiblesReponse {
   @Field(() => [BBBible])
   data: [BBBible];
+
+  @Field(() => BBMetadata)
+  meta: BBMetadata;
+}
+
+@ObjectType()
+export class BibleReponse {
+  @Field(() => [BBBible])
+  data: BBBible;
 
   @Field(() => BBMetadata)
   meta: BBMetadata;
