@@ -47,7 +47,15 @@ export class BibleInteraction {
 
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
+  highlightColor?: string;
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
   content?: string;
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  metadata?: string;
 
   @Field(() => Date)
   @Property({ type: "date" })
