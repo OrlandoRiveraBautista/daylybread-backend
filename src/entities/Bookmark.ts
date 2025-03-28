@@ -35,6 +35,10 @@ export class Bookmark {
   @Property({ nullable: true })
   bibleId?: string;
 
+  @Field(() => Number, { nullable: true })
+  @Property({ nullable: true })
+  languageId?: number;
+
   @Field(() => [BBVerse], { nullable: true })
   @Property({ nullable: true })
   newVerses?: BBVerse[];

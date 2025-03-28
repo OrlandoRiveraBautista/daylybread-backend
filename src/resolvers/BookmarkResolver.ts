@@ -18,6 +18,7 @@ import { User } from "../entities/User";
 import { Bookmark } from "../entities/Bookmark";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { BBVerse } from "../misc/biblebrain/verseTypes";
+import BibleBrainService from "../services/BibleBrainService";
 
 /* Interfaces */
 
@@ -122,6 +123,27 @@ export class BookmarkResolver {
         ],
       };
     }
+
+    const service = new BibleBrainService();
+    // Extract unique bibleIds from bookmarks
+    const bibleIds = [
+      ...new Set(bookmarks.map((b) => b.bibleId).filter(Boolean)),
+    ];
+
+    // Get the bibles from bible brain and update bookmarks
+    await Promise.all(
+      bibleIds.map(async (bibleId) => {
+        const bible = await service.searchAvailableBibles(bibleId);
+        console.log(bible);
+
+        // Update all bookmarks that match this bibleId
+        bookmarks
+          .filter((bookmark) => bookmark.bibleId === bibleId)
+          .forEach((bookmark) => {
+            bookmark.languageId = bible.data.languageId;
+          });
+      })
+    );
 
     return { results: bookmarks };
   }
