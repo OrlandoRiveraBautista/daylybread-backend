@@ -7,11 +7,13 @@ import {
   mapStoredMessagesToChatMessages,
 } from "./utils";
 import { Loaded } from "@mikro-orm/core";
+import { User } from "../entities/User";
 
 export interface MikroORMChatMessageHistoryInput {
   em: MongoEntityManager<MongoDriver>;
   chatId: string;
   limit: Number;
+  owner?: User;
 }
 
 /**
@@ -33,12 +35,14 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
   private chatId: string;
   private document: Loaded<AIMessage, never> | null;
   public limit: Number;
+  public owner?: User;
 
-  constructor({ em, chatId, limit }: MikroORMChatMessageHistoryInput) {
+  constructor({ em, chatId, limit, owner }: MikroORMChatMessageHistoryInput) {
     super();
     this.em = em;
     this.chatId = chatId;
     this.limit = limit;
+    this.owner = owner;
   }
 
   /**
@@ -83,6 +87,7 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
           },
           $setOnInsert: {
             createdAt: now,
+            owner: this.owner,
           },
         },
         { upsert: true }
