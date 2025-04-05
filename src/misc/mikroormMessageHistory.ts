@@ -1,5 +1,5 @@
 import { MongoDriver, MongoEntityManager } from "@mikro-orm/mongodb";
-import { BaseMessage, StoredMessage } from "@langchain/core/messages";
+import { BaseMessage } from "@langchain/core/messages";
 import { BaseListChatMessageHistory } from "@langchain/core/chat_history";
 import { AIMessage } from "../entities/AIMemory";
 import {
@@ -41,42 +41,72 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
     this.limit = limit;
   }
 
+  /**
+   * Get the messages from the database
+   * @returns An array of BaseMessage objects
+   */
   async getMessages(): Promise<BaseMessage[]> {
+    // Get the document from the database
     this.document = await this.em.findOne(AIMessage, {
       chatId: this.chatId,
     });
 
+    // Get the messages from the document
     const messages = this.document?.messages.slice(-this.limit) || [];
 
+    // Map the messages to BaseMessage objects
     return mapStoredMessagesToChatMessages(messages);
   }
 
+  /**
+   * Add a message to the database
+   * @param message - The message to add
+   */
   async addMessage(message: BaseMessage): Promise<void> {
-    let readyToStoreMessage: StoredMessage[] = mapChatMessagesToStoredMessages([
-      message,
-    ]);
-
-    if (this.document) {
-      readyToStoreMessage = this.document?.messages
-        .slice(-this.limit)
-        .concat(readyToStoreMessage);
-    }
+    const readyToStoreMessage = mapChatMessagesToStoredMessages([message]);
+    const now = new Date();
 
     try {
-      this.document = await this.em.upsert(AIMessage, {
+      // Use $push with $slice to atomically add the message and maintain the limit
+      // Also update timestamps atomically
+      await this.em.getCollection(AIMessage).updateOne(
+        { chatId: this.chatId },
+        {
+          $push: {
+            messages: {
+              $each: readyToStoreMessage,
+              $slice: -Number(this.limit), // Keep only the last 'limit' messages
+            },
+          },
+          $set: {
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            createdAt: now,
+          },
+        },
+        { upsert: true }
+      );
+
+      // Update our local document reference
+      this.document = await this.em.findOne(AIMessage, {
         chatId: this.chatId,
-        messages: readyToStoreMessage,
       });
     } catch (error) {
-      console.log(error);
+      console.error("Error adding message:", error);
+      throw error;
     }
   }
 
   async clear(): Promise<void> {
-    const messagesFromDb = this.em.findOne(AIMessage, {
-      chatId: this.chatId,
-    });
-    this.em.remove(messagesFromDb);
-    await this.em.flush();
+    try {
+      await this.em.getCollection(AIMessage).deleteOne({
+        chatId: this.chatId,
+      });
+      this.document = null;
+    } catch (error) {
+      console.error("Error clearing messages:", error);
+      throw error;
+    }
   }
 }
