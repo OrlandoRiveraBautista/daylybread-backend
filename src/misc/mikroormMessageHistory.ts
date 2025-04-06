@@ -71,12 +71,14 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
     const now = new Date();
 
     try {
+      // Start a transaction
       await this.em.transactional(async (em) => {
+        // Get the ai message from the database
         const aiMessage = await em.findOne(AIMessage, {
           chatId: this.chatId,
-          owner: this.owner,
         });
 
+        // If the ai message does not exist, create a new one
         if (!aiMessage) {
           const newMessage = em.create(AIMessage, {
             chatId: this.chatId,
@@ -85,15 +87,27 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
             createdAt: now,
             updatedAt: now,
           });
+
+          // Persist and flush the new message
           await em.persistAndFlush(newMessage);
+          // Set the document to the new message
           this.document = newMessage;
         } else {
+          // If the ai message exists, update the messages
           aiMessage.messages = [
             ...aiMessage.messages,
             ...readyToStoreMessage,
           ].slice(-Number(this.limit));
           aiMessage.updatedAt = now;
+
+          // If the owner is set, update the owner
+          if (this.owner && !aiMessage.owner) {
+            aiMessage.owner = this.owner;
+          }
+
+          // Persist and flush the updated message
           await em.persistAndFlush(aiMessage);
+          // Set the document to the updated message
           this.document = aiMessage;
         }
       });
