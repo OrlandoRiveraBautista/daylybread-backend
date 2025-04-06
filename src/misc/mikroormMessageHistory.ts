@@ -71,31 +71,31 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
     const now = new Date();
 
     try {
-      // Use $push with $slice to atomically add the message and maintain the limit
-      // Also update timestamps atomically
-      await this.em.getCollection(AIMessage).updateOne(
-        { chatId: this.chatId },
-        {
-          $push: {
-            messages: {
-              $each: readyToStoreMessage,
-              $slice: -Number(this.limit), // Keep only the last 'limit' messages
-            },
-          },
-          $set: {
-            updatedAt: now,
-          },
-          $setOnInsert: {
-            createdAt: now,
-            owner: this.owner,
-          },
-        },
-        { upsert: true }
-      );
+      await this.em.transactional(async (em) => {
+        const aiMessage = await em.findOne(AIMessage, {
+          chatId: this.chatId,
+          owner: this.owner,
+        });
 
-      // Update our local document reference
-      this.document = await this.em.findOne(AIMessage, {
-        chatId: this.chatId,
+        if (!aiMessage) {
+          const newMessage = em.create(AIMessage, {
+            chatId: this.chatId,
+            messages: readyToStoreMessage,
+            owner: this.owner,
+            createdAt: now,
+            updatedAt: now,
+          });
+          await em.persistAndFlush(newMessage);
+          this.document = newMessage;
+        } else {
+          aiMessage.messages = [
+            ...aiMessage.messages,
+            ...readyToStoreMessage,
+          ].slice(-Number(this.limit));
+          aiMessage.updatedAt = now;
+          await em.persistAndFlush(aiMessage);
+          this.document = aiMessage;
+        }
       });
     } catch (error) {
       console.error("Error adding message:", error);
