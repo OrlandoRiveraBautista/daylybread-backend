@@ -17,9 +17,9 @@ export class AIMessage {
   @PrimaryKey()
   _id!: ObjectId;
 
-  @Field(() => User)
-  @ManyToOne(() => User)
-  owner: User;
+  @Field(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true })
+  owner?: User;
 
   @Field(() => String)
   @Property()

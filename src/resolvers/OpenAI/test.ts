@@ -10,9 +10,18 @@ import {
   Field,
   PubSubEngine,
 } from "type-graphql";
+
+/* Types */
 import { MyContext } from "../../types";
+
+/* Entity */
 import { FieldError } from "../../entities/Errors/FieldError";
+
+/* Middlewares */
 import { setupChatGpt } from "../../middlewares/setupChatGpt";
+import { ValidateUser } from "../../middlewares/userAuth";
+import { ObjectId } from "@mikro-orm/mongodb";
+import { User } from "../../entities/User";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -36,6 +45,7 @@ export class OpenAiTestResolver {
     return chatMessage;
   }
 
+  @ValidateUser()
   @Query(() => String)
   async getOpen(
     @Arg("options", () => GptArgs) options: GptArgs,
@@ -44,8 +54,19 @@ export class OpenAiTestResolver {
   ): Promise<String | FieldError | undefined> {
     if (!options.promptText) return; // check to see if there is anything in the prompt
 
+    // since I wil be using a non explicit value from request (userId)
+    // I will declare a local req as any
+    const req = context.request as any;
+    let user: User | undefined;
+
+    if (req.userId) {
+      user =
+        (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
+        undefined;
+    }
+
     // Set up the chatgpt instance
-    await setupChatGpt(context, options.deviceId);
+    await setupChatGpt(context, options.deviceId, user);
 
     // call ai with prompt text
     let response;
@@ -82,6 +103,12 @@ export class OpenAiTestResolver {
       };
       return error;
     }
+
+    // send a completion response to the subscriber
+    await pubsub.publish(
+      `AI_CHAT_RESPONSE_UPDATED_${options.deviceId}`,
+      "[DONE]"
+    );
 
     // return response text
     return response.response;
