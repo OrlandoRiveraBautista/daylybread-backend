@@ -104,6 +104,12 @@ export class OpenAiTestResolver {
       return error;
     }
 
+    // send a completion response to the subscriber
+    await pubsub.publish(
+      `AI_CHAT_RESPONSE_UPDATED_${options.deviceId}`,
+      "[DONE]"
+    );
+
     // return response text
     return response.response;
   }
