@@ -32,7 +32,7 @@ export class NFCConfig {
 
   @Field(() => String)
   @Property()
-  name!: string;
+  title!: string;
 
   @Field(() => String)
   @Property()
