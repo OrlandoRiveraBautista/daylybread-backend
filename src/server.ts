@@ -23,7 +23,8 @@ import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
 import { BooksResolver } from "./resolvers/Bible/BibleBrain/BooksResolver";
 import { VersesResolver } from "./resolvers/Bible/BibleBrain/VersesResolver";
 import { CopyrightResolver } from "./resolvers/Bible/BibleBrain/CopyrightResolver";
-import { MediaResolver } from "./resolvers/Bible/BibleBrain/MediaResolver";
+import { MediaResolver as BibleBrainMediaResolver } from "./resolvers/Bible/BibleBrain/MediaResolver";
+import { MediaResolver } from "./resolvers/Platform/MediaResolver";
 
 dotenv.config();
 
@@ -47,9 +48,10 @@ const server = async () => {
       BookmarkResolver,
       CopyrightResolver,
       HistoryResolver,
-      MediaResolver,
+      BibleBrainMediaResolver,
       BibleInteractionResolver,
       NFCConfigResolver,
+      MediaResolver,
     ],
   });
 
