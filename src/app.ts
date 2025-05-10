@@ -153,8 +153,19 @@ class App {
               "http://localhost:3000", // ----------- local
               "https://daylybread-marketr.web.app", // ----- old prod
               "https://daylybread-dev.web.app", // ------ dev
+
+              // Development sub domains
+              // These should be added to the local env though the hosts file in the etc drivers
+              "http://bible.daylybread.local:8100", // ----subdomained url
+              "http://app.daylybread.local:8100", // ----subdomained url
+              "http://nfc.daylybread.local:8100", // ----subdomained url
+              "http://platform.daylybread.local:8100", // ----subdomained url
+
+              // Production sub domains
               "https://app.daylybread.com", // ---- prod
               "https://bible.daylybread.com", // ---- prod
+              "https://nfc.daylybread.com", // ---- prod
+              "https://platform.daylybread.com", // ---- prod
             ],
             credentials: true,
           },
