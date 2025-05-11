@@ -1,6 +1,6 @@
 import { Entity, PrimaryKey, Property, ManyToOne } from "@mikro-orm/core";
 import { ObjectId } from "@mikro-orm/mongodb";
-import { Field, ID, ObjectType } from "type-graphql";
+import { Field, ID, ObjectType, registerEnumType } from "type-graphql";
 import { User } from "./User";
 
 export enum MediaPurpose {
@@ -9,6 +9,11 @@ export enum MediaPurpose {
   CONTENT_IMAGE = "CONTENT_IMAGE",
   OTHER = "OTHER",
 }
+
+registerEnumType(MediaPurpose, {
+  name: "MediaPurpose",
+  description: "The purpose of the media file",
+});
 
 @Entity()
 @ObjectType()

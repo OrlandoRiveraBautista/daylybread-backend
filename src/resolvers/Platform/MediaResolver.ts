@@ -14,6 +14,8 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
 import { ValidateUser } from "../../middlewares/userAuth";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 @InputType()
 class MediaInput {
@@ -39,6 +41,30 @@ class MediaInput {
   description?: string;
 }
 
+@InputType()
+class SignedUrlInput {
+  @Field(() => String)
+  filename!: string;
+
+  @Field(() => String)
+  mimeType!: string;
+
+  @Field(() => MediaPurpose)
+  purpose!: MediaPurpose;
+}
+
+@ObjectType()
+class SignedUrlResponse {
+  @Field(() => String, { nullable: true })
+  signedUrl?: string;
+
+  @Field(() => String, { nullable: true })
+  fileKey?: string;
+
+  @Field(() => [FieldError], { nullable: true })
+  errors?: FieldError[];
+}
+
 @ObjectType()
 class MediaResponse {
   @Field(() => Media, { nullable: true })
@@ -50,6 +76,80 @@ class MediaResponse {
 
 @Resolver()
 export class MediaResolver {
+  private s3Client: S3Client;
+
+  constructor() {
+    this.s3Client = new S3Client({
+      region: "us-east-2",
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+      },
+      forcePathStyle: true,
+    });
+  }
+
+  @ValidateUser()
+  @Mutation(() => SignedUrlResponse)
+  async getSignedUrl(
+    @Arg("options", () => SignedUrlInput) options: SignedUrlInput,
+    @Ctx() { request }: MyContext
+  ): Promise<SignedUrlResponse> {
+    const req = request as any;
+
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
+    try {
+      const fileKey = `user-media/${req.userId}/${
+        options.purpose
+      }/${Date.now()}-${options.filename}`;
+
+      const command = new PutObjectCommand({
+        Bucket: "daylybread",
+        Key: fileKey,
+        ContentType: options.mimeType,
+        ACL: "public-read",
+        Metadata: {
+          contentType: options.mimeType,
+          originalname: options.filename,
+        },
+        ChecksumAlgorithm: "CRC32",
+      });
+
+      const signedUrl = await getSignedUrl(this.s3Client, command, {
+        expiresIn: 3600,
+        signableHeaders: new Set(["content-type", "host"]),
+        unhoistableHeaders: new Set(["x-amz-meta-*"]),
+      });
+
+      console.log("Signed URL:", signedUrl);
+
+      return {
+        signedUrl,
+        fileKey,
+      };
+    } catch (err) {
+      console.error("S3 Error:", err);
+      return {
+        errors: [
+          {
+            field: "S3",
+            message: "Failed to generate signed URL",
+          },
+        ],
+      };
+    }
+  }
+
   @Query(() => Media)
   async getMedia(@Arg("id") id: string, @Ctx() { em }: MyContext) {
     return await em.findOne(Media, { _id: new ObjectId(id) });

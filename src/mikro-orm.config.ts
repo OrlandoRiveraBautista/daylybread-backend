@@ -13,6 +13,8 @@ import { Verse } from "./entities/Bible/Verse";
 import { Bookmark } from "./entities/Bookmark";
 import { AIMessage } from "./entities/AIMemory";
 import { BibleHistory } from "./entities/Bible/BibleHistory";
+import { NFCConfig } from "./entities/NFCConfig";
+import { Media } from "./entities/Media";
 
 dotenv.config();
 
@@ -32,6 +34,8 @@ const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
     Bookmark,
     AIMessage,
     BibleHistory,
+    NFCConfig,
+    Media,
   ],
   type: "mongo",
   dbName: "daylybread",

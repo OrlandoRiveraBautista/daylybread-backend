@@ -43,6 +43,14 @@ export class NFCConfigResolver {
     return await em.findOne(NFCConfig, { _id: new ObjectId(id) });
   }
 
+  @Query(() => NFCConfig)
+  async getNFCConfigByOwner(
+    @Arg("ownerId") ownerId: string,
+    @Ctx() { em }: MyContext
+  ) {
+    return await em.findOne(NFCConfig, { owner: ownerId });
+  }
+
   @ValidateUser()
   @Mutation(() => NFCConfigResponse)
   async createNFCConfig(
