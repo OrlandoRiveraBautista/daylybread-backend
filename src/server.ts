@@ -16,13 +16,15 @@ import { UserResolver } from "./resolvers/UserResolver";
 import { BookmarkResolver } from "./resolvers/BookmarkResolver";
 import { HistoryResolver } from "./resolvers/Bible/HistoryResolver";
 import { BibleInteractionResolver } from "./resolvers/BibleInteractionResolver";
+import { NFCConfigResolver } from "./resolvers/Platform/NFCConfigResolver";
 // Bible Brain Resolvers
 import { LanguagesResolver } from "./resolvers/Bible/BibleBrain/LanguagesResolver";
 import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
 import { BooksResolver } from "./resolvers/Bible/BibleBrain/BooksResolver";
 import { VersesResolver } from "./resolvers/Bible/BibleBrain/VersesResolver";
 import { CopyrightResolver } from "./resolvers/Bible/BibleBrain/CopyrightResolver";
-import { MediaResolver } from "./resolvers/Bible/BibleBrain/MediaResolver";
+import { MediaResolver as BibleBrainMediaResolver } from "./resolvers/Bible/BibleBrain/MediaResolver";
+import { MediaResolver } from "./resolvers/Platform/MediaResolver";
 
 dotenv.config();
 
@@ -46,8 +48,10 @@ const server = async () => {
       BookmarkResolver,
       CopyrightResolver,
       HistoryResolver,
-      MediaResolver,
+      BibleBrainMediaResolver,
       BibleInteractionResolver,
+      NFCConfigResolver,
+      MediaResolver,
     ],
   });
 

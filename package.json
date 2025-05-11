@@ -12,6 +12,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.806.0",
+    "@aws-sdk/s3-request-presigner": "^3.806.0",
     "@fastify/cookie": "^6.0.0",
     "@langchain/core": "^0.3.15",
     "@langchain/openai": "^0.3.11",
