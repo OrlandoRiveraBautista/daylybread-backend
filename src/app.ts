@@ -160,6 +160,11 @@ class App {
               "http://app.daylybread.local:8100", // ----subdomained url
               "http://nfc.daylybread.local:8100", // ----subdomained url
               "http://platform.daylybread.local:8100", // ----subdomained url
+              // Remote Development sub domains
+              "https://platform.dev.daylybread.com",
+              "https://app.dev.daylybread.com",
+              "https://bible.dev.daylybread.com",
+              "https://nfc.dev.daylybread.com",
 
               // Production sub domains
               "https://app.daylybread.com", // ---- prod
