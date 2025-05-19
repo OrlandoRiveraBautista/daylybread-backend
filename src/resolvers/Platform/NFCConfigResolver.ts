@@ -131,8 +131,6 @@ export class NFCConfigResolver {
     try {
       em.assign(nfcConfig, options);
       em.persistAndFlush(nfcConfig);
-      console.log("NFC config updated");
-      console.log(nfcConfig);
     } catch (err) {
       return {
         errors: [
