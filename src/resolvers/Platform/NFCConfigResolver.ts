@@ -114,6 +114,7 @@ export class NFCConfigResolver {
     @Arg("id", () => String) id: string,
     @Ctx() { em }: MyContext
   ): Promise<NFCConfigResponse> {
+    console.log("Updating NFC config");
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
 
     if (!nfcConfig) {
@@ -127,10 +128,11 @@ export class NFCConfigResolver {
       };
     }
 
-    em.assign(nfcConfig, options);
-
     try {
-      await em.persistAndFlush(nfcConfig);
+      em.assign(nfcConfig, options);
+      em.persistAndFlush(nfcConfig);
+      console.log("NFC config updated");
+      console.log(nfcConfig);
     } catch (err) {
       return {
         errors: [
