@@ -137,7 +137,7 @@ export class NFCConfigResolver {
     @Arg("id", () => String) id: string,
     @Ctx() { em }: MyContext
   ): Promise<NFCConfigResponse> {
-    console.log("Updating NFC config");
+    console.log("Updating NFC config", options.socialMedia);
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
 
     if (!nfcConfig) {
@@ -152,19 +152,11 @@ export class NFCConfigResolver {
     }
 
     try {
-      if (options.socialMedia) {
-        nfcConfig.socialMedia.facebook =
-          options.socialMedia.facebook ?? nfcConfig.socialMedia.facebook;
-        nfcConfig.socialMedia.instagram =
-          options.socialMedia.instagram ?? nfcConfig.socialMedia.instagram;
-        nfcConfig.socialMedia.twitter =
-          options.socialMedia.twitter ?? nfcConfig.socialMedia.twitter;
-      }
-
       em.assign(nfcConfig, {
         url: options.url,
         title: options.title,
         description: options.description,
+        socialMedia: options.socialMedia,
       });
 
       await em.persistAndFlush(nfcConfig);
