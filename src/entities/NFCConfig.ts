@@ -67,16 +67,4 @@ export class NFCConfig {
   @Field(() => SocialMediaSettings)
   @Property({ type: SocialMediaSettings })
   socialMedia: SocialMediaSettings = new SocialMediaSettings();
-
-  @Field(() => LinkSettings, { nullable: true })
-  @Property({ type: LinkSettings, nullable: true })
-  givingLink?: LinkSettings;
-
-  @Field(() => LinkSettings, { nullable: true })
-  @Property({ type: LinkSettings, nullable: true })
-  memberRegistrationLink?: LinkSettings;
-
-  @Field(() => LinkSettings, { nullable: true })
-  @Property({ type: LinkSettings, nullable: true })
-  eventsLink?: LinkSettings;
 }

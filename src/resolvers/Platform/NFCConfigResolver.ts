@@ -49,15 +49,6 @@ class NFCConfigInput {
 
   @Field(() => SocialMediaSettingsInput, { nullable: true })
   socialMedia?: SocialMediaSettingsInput;
-
-  @Field(() => LinkSettingsInput, { nullable: true })
-  givingLink?: LinkSettingsInput;
-
-  @Field(() => LinkSettingsInput, { nullable: true })
-  memberRegistrationLink?: LinkSettingsInput;
-
-  @Field(() => LinkSettingsInput, { nullable: true })
-  eventsLink?: LinkSettingsInput;
 }
 
 @ObjectType()
@@ -130,9 +121,6 @@ export class NFCConfigResolver {
       owner: user,
       nfcIds: [],
       socialMedia: socialMediaSettings,
-      givingLink: options.givingLink,
-      memberRegistrationLink: options.memberRegistrationLink,
-      eventsLink: options.eventsLink,
     });
 
     try {
@@ -178,9 +166,6 @@ export class NFCConfigResolver {
         title: options.title,
         description: options.description,
         socialMedia: options.socialMedia,
-        givingLink: options.givingLink,
-        memberRegistrationLink: options.memberRegistrationLink,
-        eventsLink: options.eventsLink,
       });
 
       await em.persistAndFlush(nfcConfig);
