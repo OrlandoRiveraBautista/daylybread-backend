@@ -8,12 +8,24 @@ import {
   Field,
   ObjectType,
 } from "type-graphql";
-import { NFCConfig } from "../../entities/NFCConfig";
+import { NFCConfig, SocialMediaSettings } from "../../entities/NFCConfig";
 import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
 import { ValidateUser } from "../../middlewares/userAuth";
+
+@InputType()
+class SocialMediaSettingsInput {
+  @Field(() => Boolean, { nullable: true })
+  facebook?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  instagram?: boolean;
+
+  @Field(() => Boolean, { nullable: true })
+  twitter?: boolean;
+}
 
 @InputType()
 class NFCConfigInput {
@@ -25,6 +37,9 @@ class NFCConfigInput {
 
   @Field(() => String)
   description!: string;
+
+  @Field(() => SocialMediaSettingsInput, { nullable: true })
+  socialMedia?: SocialMediaSettingsInput;
 }
 
 @ObjectType()
@@ -83,12 +98,20 @@ export class NFCConfigResolver {
       };
     }
 
+    const socialMediaSettings = new SocialMediaSettings();
+    if (options.socialMedia) {
+      socialMediaSettings.facebook = options.socialMedia.facebook ?? false;
+      socialMediaSettings.instagram = options.socialMedia.instagram ?? false;
+      socialMediaSettings.twitter = options.socialMedia.twitter ?? false;
+    }
+
     const nfcConfig = em.create(NFCConfig, {
       url: options.url,
       title: options.title,
       description: options.description,
       owner: user,
       nfcIds: [],
+      socialMedia: socialMediaSettings,
     });
 
     try {
@@ -114,6 +137,7 @@ export class NFCConfigResolver {
     @Arg("id", () => String) id: string,
     @Ctx() { em }: MyContext
   ): Promise<NFCConfigResponse> {
+    console.log("Updating NFC config", options.socialMedia);
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
 
     if (!nfcConfig) {
@@ -127,9 +151,14 @@ export class NFCConfigResolver {
       };
     }
 
-    em.assign(nfcConfig, options);
-
     try {
+      em.assign(nfcConfig, {
+        url: options.url,
+        title: options.title,
+        description: options.description,
+        socialMedia: options.socialMedia,
+      });
+
       await em.persistAndFlush(nfcConfig);
     } catch (err) {
       return {
