@@ -64,4 +64,8 @@ export class NFCConfig {
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
   memberRegistrationLink?: string;
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  eventsLink?: string;
 }
