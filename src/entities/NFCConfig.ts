@@ -3,6 +3,21 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
 import { User } from "./User";
 
+@ObjectType()
+export class SocialMediaSettings {
+  @Field(() => Boolean)
+  @Property()
+  facebook: boolean = false;
+
+  @Field(() => Boolean)
+  @Property()
+  instagram: boolean = false;
+
+  @Field(() => Boolean)
+  @Property()
+  twitter: boolean = false;
+}
+
 @Entity()
 @ObjectType()
 export class NFCConfig {
@@ -37,4 +52,20 @@ export class NFCConfig {
   @Field(() => String)
   @Property()
   description!: string;
+
+  @Field(() => SocialMediaSettings)
+  @Property({ type: SocialMediaSettings })
+  socialMedia: SocialMediaSettings = new SocialMediaSettings();
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  givingLink?: string;
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  memberRegistrationLink?: string;
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  eventsLink?: string;
 }
