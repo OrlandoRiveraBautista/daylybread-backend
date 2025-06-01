@@ -50,14 +50,14 @@ class NFCConfigInput {
   @Field(() => SocialMediaSettingsInput, { nullable: true })
   socialMedia?: SocialMediaSettingsInput;
 
-  @Field(() => String, { nullable: true })
-  givingLink?: string;
+  @Field(() => LinkSettingsInput, { nullable: true })
+  givingLink?: LinkSettingsInput;
 
-  @Field(() => String, { nullable: true })
-  memberRegistrationLink?: string;
+  @Field(() => LinkSettingsInput, { nullable: true })
+  memberRegistrationLink?: LinkSettingsInput;
 
-  @Field(() => String, { nullable: true })
-  eventsLink?: string;
+  @Field(() => LinkSettingsInput, { nullable: true })
+  eventsLink?: LinkSettingsInput;
 }
 
 @ObjectType()
