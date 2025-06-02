@@ -18,6 +18,17 @@ export class SocialMediaSettings {
   twitter: boolean = false;
 }
 
+@ObjectType()
+export class LinkSettings {
+  @Field(() => Boolean)
+  @Property()
+  isVisible: boolean = false;
+
+  @Field(() => String)
+  @Property()
+  url: string = "";
+}
+
 @Entity()
 @ObjectType()
 export class NFCConfig {
@@ -57,15 +68,15 @@ export class NFCConfig {
   @Property({ type: SocialMediaSettings })
   socialMedia: SocialMediaSettings = new SocialMediaSettings();
 
-  @Field(() => String, { nullable: true })
-  @Property({ nullable: true })
-  givingLink?: string;
+  @Field(() => LinkSettings, { nullable: true })
+  @Property({ type: LinkSettings, nullable: true })
+  givingLink?: LinkSettings;
 
-  @Field(() => String, { nullable: true })
-  @Property({ nullable: true })
-  memberRegistrationLink?: string;
+  @Field(() => LinkSettings, { nullable: true })
+  @Property({ type: LinkSettings, nullable: true })
+  memberRegistrationLink?: LinkSettings;
 
-  @Field(() => String, { nullable: true })
-  @Property({ nullable: true })
-  eventsLink?: string;
+  @Field(() => LinkSettings, { nullable: true })
+  @Property({ type: LinkSettings, nullable: true })
+  eventsLink?: LinkSettings;
 }
