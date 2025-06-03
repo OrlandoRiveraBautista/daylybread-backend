@@ -37,6 +37,15 @@ class LinkSettingsInput {
 }
 
 @InputType()
+class MainButtonInput {
+  @Field(() => String)
+  url!: string;
+
+  @Field(() => String)
+  text!: string;
+}
+
+@InputType()
 class NFCConfigInput {
   @Field(() => String)
   url!: string;
@@ -46,6 +55,9 @@ class NFCConfigInput {
 
   @Field(() => String)
   description!: string;
+
+  @Field(() => MainButtonInput)
+  mainButton!: MainButtonInput;
 
   @Field(() => SocialMediaSettingsInput, { nullable: true })
   socialMedia?: SocialMediaSettingsInput;
@@ -124,7 +136,7 @@ export class NFCConfigResolver {
     }
 
     const nfcConfig = em.create(NFCConfig, {
-      url: options.url,
+      mainButton: options.mainButton,
       title: options.title,
       description: options.description,
       owner: user,
@@ -174,7 +186,7 @@ export class NFCConfigResolver {
 
     try {
       em.assign(nfcConfig, {
-        url: options.url,
+        mainButton: options.mainButton,
         title: options.title,
         description: options.description,
         socialMedia: options.socialMedia,
