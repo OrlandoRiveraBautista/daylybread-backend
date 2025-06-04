@@ -48,9 +48,6 @@ class MainButtonInput {
 @InputType()
 class NFCConfigInput {
   @Field(() => String)
-  url!: string;
-
-  @Field(() => String)
   title!: string;
 
   @Field(() => String)
