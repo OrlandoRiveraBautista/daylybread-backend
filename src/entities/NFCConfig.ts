@@ -4,6 +4,17 @@ import { Field, ID, ObjectType } from "type-graphql";
 import { User } from "./User";
 
 @ObjectType()
+class mainButton {
+  @Field(() => String)
+  @Property()
+  url: string = "";
+
+  @Field(() => String)
+  @Property()
+  text: string = "";
+}
+
+@ObjectType()
 export class SocialMediaSettings {
   @Field(() => Boolean)
   @Property()
@@ -52,9 +63,9 @@ export class NFCConfig {
   @Property({ type: "array" })
   nfcIds: string[] = [];
 
-  @Field(() => String)
-  @Property()
-  url!: string;
+  @Field(() => mainButton)
+  @Property({ type: mainButton })
+  mainButton!: mainButton;
 
   @Field(() => String)
   @Property()
