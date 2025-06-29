@@ -14,7 +14,8 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
 import { ValidateUser } from "../../middlewares/userAuth";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 @InputType()
@@ -54,9 +55,24 @@ class SignedUrlInput {
 }
 
 @ObjectType()
-class SignedUrlResponse {
+class GetSignedUrlResponse {
   @Field(() => String, { nullable: true })
   signedUrl?: string;
+
+  @Field(() => String, { nullable: true })
+  fileKey?: string;
+
+  @Field(() => [FieldError], { nullable: true })
+  errors?: FieldError[];
+}
+
+@ObjectType()
+class PostSignedUrlResponse {
+  @Field(() => String, { nullable: true })
+  signedUrl?: string;
+
+  @Field(() => String, { nullable: true })
+  fields?: string;
 
   @Field(() => String, { nullable: true })
   fileKey?: string;
@@ -85,16 +101,15 @@ export class MediaResolver {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
       },
-      forcePathStyle: true,
     });
   }
 
   @ValidateUser()
-  @Mutation(() => SignedUrlResponse)
-  async getSignedUrl(
+  @Mutation(() => GetSignedUrlResponse)
+  async getGetSignedUrl(
     @Arg("options", () => SignedUrlInput) options: SignedUrlInput,
     @Ctx() { request }: MyContext
-  ): Promise<SignedUrlResponse> {
+  ): Promise<GetSignedUrlResponse> {
     const req = request as any;
 
     if (!req.userId) {
@@ -113,25 +128,15 @@ export class MediaResolver {
         options.purpose
       }/${Date.now()}-${options.filename}`;
 
-      const command = new PutObjectCommand({
+      const command = new GetObjectCommand({
         Bucket: "daylybread",
         Key: fileKey,
-        ContentType: options.mimeType,
-        ACL: "public-read",
-        Metadata: {
-          contentType: options.mimeType,
-          originalname: options.filename,
-        },
-        ChecksumAlgorithm: "CRC32",
       });
 
       const signedUrl = await getSignedUrl(this.s3Client, command, {
         expiresIn: 3600,
-        signableHeaders: new Set(["content-type", "host"]),
-        unhoistableHeaders: new Set(["x-amz-meta-*"]),
+        signableHeaders: new Set(["host", "content-type"]),
       });
-
-      console.log("Signed URL:", signedUrl);
 
       return {
         signedUrl,
@@ -148,6 +153,51 @@ export class MediaResolver {
         ],
       };
     }
+  }
+
+  @ValidateUser()
+  @Mutation(() => PostSignedUrlResponse)
+  async getPostSignedUrl(
+    @Arg("options", () => SignedUrlInput) options: SignedUrlInput,
+    @Ctx() { request }: MyContext
+  ): Promise<PostSignedUrlResponse> {
+    const req = request as any;
+
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
+    const fileKey = `user-media/${req.userId}/${
+      options.purpose
+    }/${Date.now()}-${options.filename}`;
+
+    const { url, fields } = await createPresignedPost(this.s3Client, {
+      Bucket: "daylybread",
+      Key: fileKey,
+      Conditions: [
+        ["content-length-range", 0, 10485760], // up to 10 MB
+        { "x-amz-acl": "public-read" },
+        { "Content-Type": options.mimeType },
+      ],
+      Fields: {
+        "Content-Type": options.mimeType,
+        "x-amz-acl": "public-read",
+      },
+      Expires: 3600,
+    });
+
+    return {
+      signedUrl: url,
+      fields: JSON.stringify(fields),
+      fileKey,
+    };
   }
 
   @Query(() => Media)
