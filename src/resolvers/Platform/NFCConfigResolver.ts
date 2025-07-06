@@ -48,6 +48,9 @@ class MainButtonInput {
 @InputType()
 class NFCConfigInput {
   @Field(() => String)
+  type!: string;
+
+  @Field(() => String)
   title!: string;
 
   @Field(() => String)
@@ -67,6 +70,9 @@ class NFCConfigInput {
 
   @Field(() => LinkSettingsInput, { nullable: true })
   eventsLink?: LinkSettingsInput;
+
+  @Field(() => String, { nullable: true })
+  mediaId?: string;
 }
 
 @ObjectType()
@@ -133,15 +139,10 @@ export class NFCConfigResolver {
     }
 
     const nfcConfig = em.create(NFCConfig, {
-      mainButton: options.mainButton,
-      title: options.title,
-      description: options.description,
+      ...options,
       owner: user,
       nfcIds: [],
       socialMedia: socialMediaSettings,
-      givingLink: options.givingLink,
-      memberRegistrationLink: options.memberRegistrationLink,
-      eventsLink: options.eventsLink,
     });
 
     try {
@@ -167,7 +168,6 @@ export class NFCConfigResolver {
     @Arg("id", () => String) id: string,
     @Ctx() { em }: MyContext
   ): Promise<NFCConfigResponse> {
-    console.log("Updating NFC config", options.socialMedia);
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
 
     if (!nfcConfig) {
@@ -183,13 +183,7 @@ export class NFCConfigResolver {
 
     try {
       em.assign(nfcConfig, {
-        mainButton: options.mainButton,
-        title: options.title,
-        description: options.description,
-        socialMedia: options.socialMedia,
-        givingLink: options.givingLink,
-        memberRegistrationLink: options.memberRegistrationLink,
-        eventsLink: options.eventsLink,
+        ...options,
       });
 
       await em.persistAndFlush(nfcConfig);
