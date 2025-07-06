@@ -15,6 +15,21 @@ registerEnumType(MediaPurpose, {
   description: "The purpose of the media file",
 });
 
+@ObjectType()
+export class MediaCache {
+  @Field(() => String)
+  @Property()
+  url?: string;
+
+  @Field(() => String)
+  @Property()
+  expiresAt?: Date;
+
+  @Field(() => Number, { nullable: true })
+  @Property({ nullable: true })
+  duration?: number; // Store the duration used for this cache
+}
+
 @Entity()
 @ObjectType()
 export class Media {
@@ -36,7 +51,7 @@ export class Media {
 
   @Field(() => String)
   @Property()
-  url!: string;
+  fileKey!: string;
 
   @Field(() => String)
   @Property()
@@ -61,4 +76,38 @@ export class Media {
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
   description?: string;
+
+  @Field(() => MediaCache, { nullable: true })
+  @Property({ type: MediaCache, nullable: true })
+  cache?: MediaCache;
+
+  // Helper method to get recommended cache duration
+  getCacheDuration(): number {
+    switch (this.purpose) {
+      case MediaPurpose.PROFILE_PICTURE:
+        return 86400; // 1 day - changes occasionally
+      case MediaPurpose.CHURCH_LOGO:
+        return 604800; // 7 days - rarely changes
+      case MediaPurpose.CONTENT_IMAGE:
+        return 172800; // 2 days - moderate change frequency
+      default:
+        return 3600; // 1 hour - default safe option
+    }
+  }
+
+  // Method to check if cache is valid
+  isCacheValid(): boolean {
+    return !!(
+      this.cache?.url &&
+      this.cache?.expiresAt &&
+      new Date() < this.cache.expiresAt
+    );
+  }
+
+  // Method to check if cache is about to expire (within 1 hour)
+  isCacheExpiringSoon(): boolean {
+    if (!this.cache?.expiresAt) return true;
+    const oneHourFromNow = new Date(Date.now() + 3600 * 1000);
+    return this.cache.expiresAt < oneHourFromNow;
+  }
 }
