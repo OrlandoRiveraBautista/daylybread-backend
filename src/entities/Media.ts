@@ -3,6 +3,13 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType, registerEnumType } from "type-graphql";
 import { User } from "./User";
 
+export const CACHE_DURATIONS = {
+  SHORT: 3600, // 1 hour (current)
+  MEDIUM: 86400, // 1 day
+  LONG: 604800, // 7 days (maximum)
+  CUSTOM: 172800, // 2 days
+};
+
 export enum MediaPurpose {
   PROFILE_PICTURE = "PROFILE_PICTURE",
   CHURCH_LOGO = "CHURCH_LOGO",
