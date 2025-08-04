@@ -2,6 +2,7 @@ import { Entity, PrimaryKey, Property, ManyToOne } from "@mikro-orm/core";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
 import { User } from "./User";
+import { Media } from "./Media";
 
 @ObjectType()
 class mainButton {
@@ -59,6 +60,10 @@ export class NFCConfig {
   @ManyToOne(() => User)
   owner!: User;
 
+  @Field(() => String)
+  @Property()
+  type: string = "link";
+
   @Field(() => [String])
   @Property({ type: "array" })
   nfcIds: string[] = [];
@@ -74,6 +79,15 @@ export class NFCConfig {
   @Field(() => String)
   @Property()
   description!: string;
+
+  // Store the media ID in the database
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  mediaId?: string;
+
+  // Virtual field to get the media
+  @Field(() => Media, { nullable: true })
+  media?: Media;
 
   @Field(() => SocialMediaSettings)
   @Property({ type: SocialMediaSettings })
