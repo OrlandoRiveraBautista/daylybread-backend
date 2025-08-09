@@ -2,12 +2,12 @@ import {
   Resolver,
   Query,
   Arg,
-  Ctx,
+  //   Ctx,
   InputType,
   Field,
   ObjectType,
 } from "type-graphql";
-import { MyContext } from "../types";
+// import { MyContext } from "../types";
 import { FieldError } from "../entities/Errors/FieldError";
 import { ValidateUser } from "../middlewares/userAuth";
 import { ChatOpenAI } from "@langchain/openai";
@@ -16,14 +16,6 @@ import {
   HumanMessagePromptTemplate,
   SystemMessagePromptTemplate,
 } from "@langchain/core/prompts";
-import { MoodCache, MoodType } from "../entities/MoodCache";
-import { User } from "../entities/User";
-import { ObjectId } from "@mikro-orm/mongodb";
-import {
-  Notification,
-  NotificationDeliveryType,
-  UserNotificationSettings,
-} from "../entities/Notification";
 
 // Input types
 @InputType()
@@ -52,12 +44,6 @@ export class VerseResponseType {
 
   @Field(() => String)
   mood!: string;
-
-  @Field(() => Boolean)
-  fromCache!: boolean;
-
-  @Field(() => Date, { nullable: true })
-  nextRequestAllowed?: Date;
 }
 
 @ObjectType()
@@ -74,8 +60,8 @@ export class MoodResolver {
   @ValidateUser()
   @Query(() => MoodResponse)
   async getMoodBasedVerse(
-    @Arg("input") input: MoodRequestInput,
-    @Ctx() context: MyContext
+    @Arg("input") input: MoodRequestInput
+    // @Ctx() context: MyContext
   ): Promise<MoodResponse> {
     try {
       // Validate mood input
@@ -97,45 +83,6 @@ export class MoodResolver {
               message: `Invalid mood. Must be one of: ${validMoods.join(", ")}`,
             },
           ],
-        };
-      }
-
-      // Get user from context and handle authentication
-      const req = context.request as any;
-      let user: User | undefined;
-      if (req.userId) {
-        user =
-          (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
-          undefined;
-        if (!user) {
-          return { errors: [{ message: "User not found" }] };
-        }
-      } else {
-        return { errors: [{ message: "User authentication required" }] };
-      }
-
-      // Clean up expired cache entries for this user
-      await this.cleanupExpiredCache(context, user._id.toString());
-
-      // Check for existing valid cache entry
-      const moodType = input.mood.toLowerCase() as MoodType;
-      const currentTime = new Date();
-      const existingCache = await context.em.findOne(MoodCache, {
-        userId: user._id.toString(),
-        mood: moodType,
-        expiresAt: { $gt: currentTime },
-      });
-
-      if (existingCache) {
-        return {
-          result: {
-            verse: existingCache.verse,
-            reference: existingCache.reference,
-            reflection: existingCache.reflection,
-            mood: existingCache.mood,
-            fromCache: true,
-            nextRequestAllowed: existingCache.expiresAt,
-          },
         };
       }
 
@@ -227,102 +174,12 @@ export class MoodResolver {
         };
       }
 
-      // Cache the new response
-      const cacheEntry = new MoodCache();
-      cacheEntry.userId = user._id.toString();
-      cacheEntry.mood = moodType;
-      cacheEntry.verse = aiResponse.verse;
-      cacheEntry.reference = aiResponse.reference;
-      cacheEntry.reflection = aiResponse.reflection;
-      cacheEntry.additionalContext = input.additionalContext;
-      cacheEntry.preferredBibleVersion = input.preferredBibleVersion;
-
-      // Set expiration time (30 minutes from now)
-      const expirationTime = new Date();
-      expirationTime.setMinutes(expirationTime.getMinutes() + 30);
-      cacheEntry.expiresAt = expirationTime;
-
-      await context.em.persistAndFlush(cacheEntry);
-
-      // Schedule notifications for when cache expires
-      try {
-        // Get user's notification settings to determine which notifications to schedule
-        const userSettings = await context.em.findOne(
-          UserNotificationSettings,
-          {
-            userId: user._id.toString(),
-          }
-        );
-
-        const notifications: Notification[] = [];
-
-        // Schedule WebSocket notification if enabled (default: enabled)
-        if (!userSettings || userSettings.enableWebSocketNotifications) {
-          if (!userSettings || userSettings.enableMoodRequestNotifications) {
-            const wsNotification = Notification.createMoodRequestNotification(
-              user._id.toString(),
-              input.mood,
-              NotificationDeliveryType.WEBSOCKET,
-              expirationTime
-            );
-            notifications.push(wsNotification);
-          }
-        }
-
-        // Schedule browser push notification if enabled
-        if (
-          userSettings &&
-          userSettings.enableBrowserPushNotifications &&
-          userSettings.enableMoodRequestNotifications &&
-          userSettings.pushSubscriptionEndpoint
-        ) {
-          const pushNotification = Notification.createMoodRequestNotification(
-            user._id.toString(),
-            input.mood,
-            NotificationDeliveryType.BROWSER_PUSH,
-            expirationTime
-          );
-          pushNotification.message = `Your ${input.mood} mood request is ready! Open DailyBread to request a new verse.`;
-          notifications.push(pushNotification);
-        }
-
-        // Schedule email notification if enabled
-        if (
-          userSettings &&
-          userSettings.enableEmailNotifications &&
-          userSettings.enableMoodRequestNotifications
-        ) {
-          const emailNotification = Notification.createMoodRequestNotification(
-            user._id.toString(),
-            input.mood,
-            NotificationDeliveryType.EMAIL,
-            expirationTime
-          );
-          emailNotification.message = `Your ${input.mood} mood request is ready! Visit DailyBread to request a new verse.`;
-          notifications.push(emailNotification);
-        }
-
-        if (notifications.length > 0) {
-          await context.em.persistAndFlush(notifications);
-          console.log(
-            `Scheduled ${notifications.length} notifications for mood: ${
-              input.mood
-            }, user: ${user._id.toString()}`
-          );
-        }
-      } catch (notificationError) {
-        console.error("Error scheduling notification:", notificationError);
-        // Don't fail the main request if notification scheduling fails
-      }
-
       return {
         result: {
           verse: aiResponse.verse,
           reference: aiResponse.reference,
           reflection: aiResponse.reflection,
           mood: input.mood,
-          fromCache: false,
-          nextRequestAllowed: expirationTime,
         },
       };
     } catch (error) {
@@ -349,83 +206,5 @@ export class MoodResolver {
       "guilty",
       "hopeful",
     ];
-  }
-
-  // Get user's mood history
-  @ValidateUser()
-  @Query(() => [MoodCache])
-  async getUserMoodHistory(@Ctx() context: MyContext): Promise<MoodCache[]> {
-    try {
-      const req = context.request as any;
-      if (!req.userId) {
-        return [];
-      }
-
-      const user =
-        (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
-        undefined;
-      if (!user) {
-        return [];
-      }
-
-      return await context.em.find(
-        MoodCache,
-        { userId: user._id.toString() },
-        { orderBy: { createdAt: -1 }, limit: 20 }
-      );
-    } catch (error) {
-      console.error("Error getting mood history:", error);
-      return [];
-    }
-  }
-
-  // Check when next mood request is allowed
-  @ValidateUser()
-  @Query(() => Date, { nullable: true })
-  async getNextMoodRequestTime(
-    @Arg("mood") mood: string,
-    @Ctx() context: MyContext
-  ): Promise<Date | null> {
-    try {
-      const req = context.request as any;
-      if (!req.userId) {
-        return null;
-      }
-
-      const user =
-        (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
-        undefined;
-      if (!user) {
-        return null;
-      }
-
-      const moodType = mood.toLowerCase() as MoodType;
-      const existingCache = await context.em.findOne(MoodCache, {
-        userId: user._id.toString(),
-        mood: moodType,
-        expiresAt: { $gt: new Date() },
-      });
-
-      return existingCache?.expiresAt || null;
-    } catch (error) {
-      console.error("Error getting next mood request time:", error);
-      return null;
-    }
-  }
-
-  // Helper method to clean up expired cache entries
-  private async cleanupExpiredCache(
-    context: MyContext,
-    userId: string
-  ): Promise<void> {
-    try {
-      const now = new Date();
-      await context.em.nativeDelete(MoodCache, {
-        userId: userId,
-        expiresAt: { $lt: now },
-      });
-    } catch (error) {
-      console.error("Error cleaning up expired cache:", error);
-    }
   }
 }
