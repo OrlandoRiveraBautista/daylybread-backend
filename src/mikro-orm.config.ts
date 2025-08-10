@@ -15,6 +15,11 @@ import { AIMessage } from "./entities/AIMemory";
 import { BibleHistory } from "./entities/Bible/BibleHistory";
 import { NFCConfig } from "./entities/NFCConfig";
 import { Media } from "./entities/Media";
+import { MoodCache } from "./entities/MoodCache";
+import {
+  Notification,
+  UserNotificationSettings,
+} from "./entities/Notification";
 
 dotenv.config();
 
@@ -36,6 +41,9 @@ const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
     BibleHistory,
     NFCConfig,
     Media,
+    MoodCache,
+    Notification,
+    UserNotificationSettings,
   ],
   type: "mongo",
   dbName: "daylybread",
