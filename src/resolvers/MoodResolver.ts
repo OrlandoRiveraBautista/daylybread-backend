@@ -141,7 +141,7 @@ export class MoodResolver {
 
       // Create a standalone ChatOpenAI instance for mood responses
       const chatModel = new ChatOpenAI({
-        temperature: 0.7, // Slightly more creative for varied responses
+        temperature: 0.9, // Encourage more variety for verse selection
         modelName: "gpt-4o-mini",
         openAIApiKey: process.env.OPENAI_API_KEY,
       });
@@ -163,7 +163,12 @@ export class MoodResolver {
 
           Guidelines:
           - Choose a Bible verse that specifically addresses the {mood} emotion
-          - Use {bibleVersion} translation when possible, otherwise default to NIV
+          - Use the exact wording of the {bibleVersion} translation; do not paraphrase the verse text
+          - Write the entire response (including the reflection) in the same language as the {bibleVersion} translation
+          - Use the {bibleVersion} book naming in the reference when applicable
+          - Randomize your selection among multiple relevant options; avoid overused verses
+          - Do NOT use any of these references: {excludeReferences}
+          - Do NOT repeat the same verse in consecutive requests
           - The reflection should be personal, warm, and directly speak to someone feeling {mood}
           - Keep the reflection concise but meaningful (2-3 sentences max)
           - Ensure the verse and reflection work together harmoniously
@@ -212,16 +217,23 @@ export class MoodResolver {
         };
       }
 
-      // Validate the AI response structure
-      if (
-        !aiResponse.verse ||
-        !aiResponse.reference ||
-        !aiResponse.reflection
-      ) {
+      // Validate the AI response structure (allow verse to be filled from DB)
+      if (!aiResponse.reference || !aiResponse.reflection) {
         return {
           errors: [
             {
               message: "Generated response was incomplete. Please try again.",
+            },
+          ],
+        };
+      }
+
+      if (!aiResponse.verse) {
+        return {
+          errors: [
+            {
+              message:
+                "Could not resolve verse text for the selected reference. Please try again.",
             },
           ],
         };
