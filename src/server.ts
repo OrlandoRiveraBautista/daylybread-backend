@@ -26,6 +26,7 @@ import { CopyrightResolver } from "./resolvers/Bible/BibleBrain/CopyrightResolve
 import { MediaResolver as BibleBrainMediaResolver } from "./resolvers/Bible/BibleBrain/MediaResolver";
 import { MediaResolver } from "./resolvers/Platform/MediaResolver";
 import { MoodResolver } from "./resolvers/MoodResolver";
+import { NotificationResolver } from "./resolvers/NotificationResolver";
 
 dotenv.config();
 
@@ -54,6 +55,7 @@ const server = async () => {
       NFCConfigResolver,
       MediaResolver,
       MoodResolver,
+      NotificationResolver,
     ],
   });
 
