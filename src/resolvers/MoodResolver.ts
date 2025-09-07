@@ -36,6 +36,9 @@ export class MoodRequestInput {
 
   @Field(() => String, { nullable: true })
   preferredBibleVersion?: string;
+
+  @Field(() => String, { nullable: true })
+  language?: string;
 }
 
 // Output types
@@ -164,10 +167,9 @@ export class MoodResolver {
           Guidelines:
           - Choose a Bible verse that specifically addresses the {mood} emotion
           - Use the exact wording of the {bibleVersion} translation; do not paraphrase the verse text
-          - Write the entire response (including the reflection) in the same language as the {bibleVersion} translation
+          - Write the entire response (including the reflection) in the {language} language
           - Use the {bibleVersion} book naming in the reference when applicable
           - Randomize your selection among multiple relevant options; avoid overused verses
-          - Do NOT use any of these references: {excludeReferences}
           - Do NOT repeat the same verse in consecutive requests
           - The reflection should be personal, warm, and directly speak to someone feeling {mood}
           - Keep the reflection concise but meaningful (2-3 sentences max)
@@ -178,7 +180,7 @@ export class MoodResolver {
           `
         ),
         HumanMessagePromptTemplate.fromTemplate(
-          "I am feeling {mood}. Please provide a Bible verse and encouraging reflection for my current emotional state."
+          "I am feeling {mood}. Please provide a Bible verse and encouraging reflection for my current emotional state in the {language} language"
         ),
       ]);
 
@@ -193,6 +195,7 @@ export class MoodResolver {
         mood: input.mood,
         bibleVersion: bibleVersion,
         additionalContext: additionalContextText,
+        language: input.language,
       });
 
       // Parse the AI response

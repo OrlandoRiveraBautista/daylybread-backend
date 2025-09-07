@@ -132,6 +132,17 @@ export class Notification {
   @Property()
   retryCount: number = 0;
 
+  @Field(() => String)
+  get type(): string {
+    return this.contentType;
+  }
+
+  @Field(() => String, { nullable: true })
+  get mood(): string | undefined {
+    const m = this.metadata?.mood;
+    return typeof m === "string" ? m : undefined;
+  }
+
   constructor() {
     this._id = new ObjectId();
   }
@@ -279,4 +290,3 @@ export class UserNotificationSettings {
     this._id = new ObjectId();
   }
 }
-
