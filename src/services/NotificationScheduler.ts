@@ -425,7 +425,7 @@ export class NotificationScheduler {
           NotificationDeliveryType.BROWSER_PUSH,
           expirationTime
         );
-        pushNotification.message = `Your ${mood} mood request is ready! Open DailyBread to request a new verse.`;
+        pushNotification.message = `Your ${mood} mood request is ready! Open Daylybread to request a new verse.`;
         notifications.push(pushNotification);
       }
 
@@ -437,7 +437,7 @@ export class NotificationScheduler {
           NotificationDeliveryType.EMAIL,
           expirationTime
         );
-        emailNotification.message = `Your ${mood} mood request is ready! Visit DailyBread to request a new verse.`;
+        emailNotification.message = `Your ${mood} mood request is ready! Visit Daylybread to request a new verse.`;
         notifications.push(emailNotification);
       }
 

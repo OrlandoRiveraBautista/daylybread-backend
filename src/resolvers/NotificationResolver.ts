@@ -474,7 +474,7 @@ export class NotificationResolver {
       notification.deliveryType = NotificationDeliveryType.BROWSER_PUSH;
       notification.title = "Test Notification";
       notification.message =
-        "This is a test push notification from DailyBread!";
+        "This is a test push notification from Daylybread!";
       notification.scheduledFor = new Date();
 
       await context.em.persistAndFlush(notification);
