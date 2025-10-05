@@ -23,6 +23,7 @@ import {
 import { ConversationChain } from "langchain/chains";
 import { BufferWindowMemory } from "langchain/memory";
 import { __prod__ } from "./constants";
+import { NotificationScheduler } from "./services/NotificationScheduler";
 
 /** App class */
 class App {
@@ -139,6 +140,14 @@ class App {
 
     // start ApolloServer
     await this.apolloServer.start();
+
+    // Start notification scheduler
+    const notificationScheduler = new NotificationScheduler(
+      orm.em.fork(),
+      pubSub
+    );
+    notificationScheduler.start();
+    console.log("🔔 Notification scheduler started");
 
     // Register ApolloServer to the fastify app
     this.app
