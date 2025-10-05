@@ -222,16 +222,33 @@ export class NotificationScheduler {
           notificationId: notification._id.toString(),
           contentType: notification.contentType,
           userId: notification.userId,
+          url: notification.actionUrl || "/",
         },
         actions: notification.actionUrl
           ? [
               {
                 action: "open",
-                title: notification.actionText || "View",
+                title: notification.actionText || "Open App",
+                icon: "/action-icon.png",
+              },
+              {
+                action: "dismiss",
+                title: "Dismiss",
                 icon: "/action-icon.png",
               },
             ]
-          : [],
+          : [
+              {
+                action: "dismiss",
+                title: "Dismiss",
+                icon: "/action-icon.png",
+              },
+            ],
+        vibrate: [200, 100, 200], // Vibration pattern
+        renotify: true, // Show even if same tag
+        requireInteraction: false, // Auto-dismiss
+        silent: false, // Enable sound
+        sound: "/assets/media/sounds/notification-sound.wav", // Custom notification sound
       });
 
       // Send the push notification
