@@ -222,16 +222,33 @@ export class NotificationScheduler {
           notificationId: notification._id.toString(),
           contentType: notification.contentType,
           userId: notification.userId,
+          url: notification.actionUrl || "/",
         },
         actions: notification.actionUrl
           ? [
               {
                 action: "open",
-                title: notification.actionText || "View",
+                title: notification.actionText || "Open App",
+                icon: "/action-icon.png",
+              },
+              {
+                action: "dismiss",
+                title: "Dismiss",
                 icon: "/action-icon.png",
               },
             ]
-          : [],
+          : [
+              {
+                action: "dismiss",
+                title: "Dismiss",
+                icon: "/action-icon.png",
+              },
+            ],
+        vibrate: [200, 100, 200], // Vibration pattern
+        renotify: true, // Show even if same tag
+        requireInteraction: false, // Auto-dismiss
+        silent: false, // Enable sound
+        sound: "/assets/media/sounds/notification-sound.wav", // Custom notification sound
       });
 
       // Send the push notification
@@ -408,7 +425,7 @@ export class NotificationScheduler {
           NotificationDeliveryType.BROWSER_PUSH,
           expirationTime
         );
-        pushNotification.message = `Your ${mood} mood request is ready! Open DailyBread to request a new verse.`;
+        pushNotification.message = `Your ${mood} mood request is ready! Open Daylybread to request a new verse.`;
         notifications.push(pushNotification);
       }
 
@@ -420,7 +437,7 @@ export class NotificationScheduler {
           NotificationDeliveryType.EMAIL,
           expirationTime
         );
-        emailNotification.message = `Your ${mood} mood request is ready! Visit DailyBread to request a new verse.`;
+        emailNotification.message = `Your ${mood} mood request is ready! Visit Daylybread to request a new verse.`;
         notifications.push(emailNotification);
       }
 
