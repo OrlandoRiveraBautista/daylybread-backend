@@ -297,7 +297,7 @@ export class MoodResolver {
             NotificationDeliveryType.BROWSER_PUSH,
             expirationTime
           );
-          pushNotification.message = `Your ${input.mood} mood request is ready! Open DailyBread to request a new verse.`;
+          pushNotification.message = `Your ${input.mood} mood request is ready! Open DaylyBread to request a new verse.`;
           notifications.push(pushNotification);
         }
 
@@ -313,7 +313,7 @@ export class MoodResolver {
             NotificationDeliveryType.EMAIL,
             expirationTime
           );
-          emailNotification.message = `Your ${input.mood} mood request is ready! Visit DailyBread to request a new verse.`;
+          emailNotification.message = `Your ${input.mood} mood request is ready! Visit DaylyBread to request a new verse.`;
           notifications.push(emailNotification);
         }
 

@@ -214,8 +214,8 @@ export class NotificationScheduler {
       const payload = JSON.stringify({
         title: notification.title,
         body: notification.message,
-        icon: "/icon-192x192.png", // Your app icon
-        badge: "/badge-72x72.png", // Badge icon
+        icon: "icon-192x192.png", // Your app icon
+        badge: "badge-72x72.png", // Badge icon
         url: notification.actionUrl || "/",
         tag: `notification-${notification._id}`,
         data: {
@@ -229,26 +229,26 @@ export class NotificationScheduler {
               {
                 action: "open",
                 title: notification.actionText || "Open App",
-                icon: "/action-icon.png",
+                icon: "action-icon.png",
               },
               {
                 action: "dismiss",
                 title: "Dismiss",
-                icon: "/action-icon.png",
+                icon: "action-icon.png",
               },
             ]
           : [
               {
                 action: "dismiss",
                 title: "Dismiss",
-                icon: "/action-icon.png",
+                icon: "action-icon.png",
               },
             ],
         vibrate: [200, 100, 200], // Vibration pattern
         renotify: true, // Show even if same tag
         requireInteraction: false, // Auto-dismiss
         silent: false, // Enable sound
-        sound: "/assets/media/sounds/notification-sound.wav", // Custom notification sound
+        sound: "assets/media/sounds/notification-sound.wav", // Custom notification sound
       });
 
       // Send the push notification
@@ -294,7 +294,7 @@ export class NotificationScheduler {
 
       const msg = {
         to: user.email,
-        from: process.env.FROM_EMAIL || "noreply@dailybread.com",
+        from: process.env.FROM_EMAIL || "noreply@daylybread.com",
         subject: notification.title,
         text: notification.message,
         html: emailContent.html,
@@ -310,23 +310,23 @@ export class NotificationScheduler {
 
   // Generate email template based on notification type
   private getEmailTemplate(notification: Notification): { html: string } {
-    const baseUrl = process.env.FRONTEND_URL || "https://dailybread.com";
+    const baseUrl = process.env.FRONTEND_URL || "https://daylybread.com";
 
     switch (notification.contentType) {
       case NotificationContentType.MOOD_REQUEST_AVAILABLE:
         return {
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #4a5568;">Your Mood Request is Ready! 🙏</h2>
-              <p style="color: #2d3748; font-size: 16px;">${notification.message}</p>
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf9fd; padding: 20px; border-radius: 12px;">
+              <h2 style="color: #1a1c1e; margin-bottom: 16px;">Your Mood Request is Ready! 🙏</h2>
+              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${notification.message}</p>
               <div style="margin: 20px 0;">
                 <a href="${baseUrl}/mood-request" 
-                   style="background-color: #4299e1; color: white; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 6px; display: inline-block;">
+                   style="background-color: #0060a8; color: white; padding: 12px 24px; 
+                          text-decoration: none; border-radius: 12px; display: inline-block; font-weight: 500;">
                   Get Your Verse
                 </a>
               </div>
-              <p style="color: #718096; font-size: 14px;">
+              <p style="color: #73777f; font-size: 14px; margin-top: 20px;">
                 This notification was sent because you requested a verse for your mood.
               </p>
             </div>
@@ -336,13 +336,13 @@ export class NotificationScheduler {
       case NotificationContentType.DAILY_VERSE:
         return {
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #4a5568;">Your Daily Verse 📖</h2>
-              <p style="color: #2d3748; font-size: 16px;">${notification.message}</p>
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf9fd; padding: 20px; border-radius: 12px;">
+              <h2 style="color: #1a1c1e; margin-bottom: 16px;">Your Daily Verse 📖</h2>
+              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${notification.message}</p>
               <div style="margin: 20px 0;">
                 <a href="${baseUrl}/daily-verse" 
-                   style="background-color: #48bb78; color: white; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 6px; display: inline-block;">
+                   style="background-color: #2dd36f; color: white; padding: 12px 24px; 
+                          text-decoration: none; border-radius: 12px; display: inline-block; font-weight: 500;">
                   Read Today's Verse
                 </a>
               </div>
@@ -353,9 +353,11 @@ export class NotificationScheduler {
       default:
         return {
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #4a5568;">${notification.title}</h2>
-              <p style="color: #2d3748; font-size: 16px;">${
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf9fd; padding: 20px; border-radius: 12px;">
+              <h2 style="color: #1a1c1e; margin-bottom: 16px;">${
+                notification.title
+              }</h2>
+              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${
                 notification.message
               }</p>
               ${
@@ -363,8 +365,8 @@ export class NotificationScheduler {
                   ? `
                 <div style="margin: 20px 0;">
                   <a href="${baseUrl}${notification.actionUrl}" 
-                     style="background-color: #4299e1; color: white; padding: 12px 24px; 
-                            text-decoration: none; border-radius: 6px; display: inline-block;">
+                     style="background-color: #0060a8; color: white; padding: 12px 24px; 
+                            text-decoration: none; border-radius: 12px; display: inline-block; font-weight: 500;">
                     ${notification.actionText || "View"}
                   </a>
                 </div>
