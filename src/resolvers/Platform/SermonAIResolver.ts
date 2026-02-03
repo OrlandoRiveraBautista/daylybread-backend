@@ -133,6 +133,42 @@ export class SermonAIResponse {
 }
 
 /**
+ * Base system instruction to ensure AI stays within Biblical/Christian context
+ */
+const BASE_SYSTEM_INSTRUCTION = `CRITICAL CONSTRAINT: You must ONLY provide responses related to the Bible, Christianity, Christian theology, and faith. 
+
+You are PROHIBITED from:
+- Discussing or promoting other religions, philosophies, or belief systems
+- Providing content that contradicts or undermines biblical teaching
+- Offering secular advice that is not grounded in Christian principles
+- Generating content unrelated to Christian faith and practice
+
+You MUST:
+- Ground all responses in Scripture and Christian theology
+- Maintain biblical accuracy and orthodoxy
+- Focus exclusively on Christian applications and perspectives
+- Redirect any off-topic requests back to biblical/Christian context
+- If a request cannot be fulfilled within Christian boundaries, politely decline and explain why
+- When a sermon title is provided, ensure ALL content directly relates to and supports that specific sermon title and theme
+- Keep the sermon title as the central focus and filter all suggestions, illustrations, and applications through its lens
+- Make sure every element you generate serves the purpose of the sermon as indicated by its title
+- When a language is specified, respond ENTIRELY in that language - do not mix languages or default to English
+- Match the linguistic style and cultural context appropriate to the specified language
+
+MARKDOWN FORMATTING REQUIREMENTS (unless otherwise specified):
+- Use proper markdown syntax for all formatting
+- Use ## for H2 headings, ### for H3 headings when organizing content
+- Use **bold** for emphasis on key points or important concepts
+- Use *italic* for subtle emphasis or biblical references
+- Use bullet lists (-) or numbered lists (1.) for multiple points, steps, or items
+- Use > for blockquotes when citing scripture or important quotes
+- Separate paragraphs with blank lines
+- Use proper markdown list syntax with consistent indentation
+- Ensure all markdown syntax is valid and properly formatted
+
+This is non-negotiable for all responses.`;
+
+/**
  * Prompt templates for different assistance types
  */
 const PROMPT_TEMPLATES: Record<
@@ -162,7 +198,8 @@ const PROMPT_TEMPLATES: Record<
     - Each point should be memorable and clearly stated
     - Include supporting sub-points for each
     - Ensure logical flow between points
-    - Connect each point back to the central theme`,
+    - Connect each point back to the central theme
+    - Format using markdown: use ## for main point headings, **bold** for emphasis, and bullet points for sub-points`,
     human: `Develop main points for a sermon about: {context}
     
     {highlightedText}
@@ -205,7 +242,8 @@ const PROMPT_TEMPLATES: Record<
     - Provide 3-4 main points with sub-points
     - Suggest scripture references for each section
     - Include timing estimates
-    - Add notes for illustrations and applications`,
+    - Add notes for illustrations and applications
+    - Format using markdown: use ## for major sections, ### for main points, **bold** for emphasis, and bullet points for sub-points`,
     human: `Create a complete sermon outline for: {context}
     
     {highlightedText}
@@ -221,7 +259,8 @@ const PROMPT_TEMPLATES: Record<
     - Include both Old and New Testament options
     - Provide brief explanations for each
     - Consider various Bible themes
-    - Include verse text and reference`,
+    - Include verse text and reference
+    - Format using markdown: use **bold** for verse references, > blockquotes for verse text, and bullet points for organizing verses`,
     human: `Suggest relevant Bible verses for a sermon about: {context}
     
     {highlightedText}
@@ -249,7 +288,8 @@ const PROMPT_TEMPLATES: Record<
     - Identify related themes across books
     - Show how concepts develop throughout Scripture
     - Include both direct quotes and thematic connections
-    - Explain the significance of each reference`,
+    - Explain the significance of each reference
+    - Format using markdown: use **bold** for verse references, > blockquotes for verse text, and bullet points for organizing references`,
     human: `Find cross-references for: {context}
     
     {highlightedText}
@@ -351,7 +391,8 @@ const PROMPT_TEMPLATES: Record<
     - Include applications for different life stages
     - Address various life contexts (work, home, church)
     - Provide both individual and corporate applications
-    - Balance challenge with encouragement`,
+    - Balance challenge with encouragement
+    - Format using markdown: use ## for application categories, **bold** for key actions, and bullet points for specific applications`,
     human: `Create practical applications for a sermon about: {context}
     
     {highlightedText}
@@ -379,7 +420,8 @@ const PROMPT_TEMPLATES: Record<
     - Make them measurable when possible
     - Include immediate and long-term actions
     - Provide accountability suggestions
-    - Connect each step to biblical principles`,
+    - Connect each step to biblical principles
+    - Format using markdown: use numbered lists (1., 2., 3.) for steps, **bold** for key actions, and bullet points for sub-items`,
     human: `Create actionable steps for a sermon about: {context}
     
     {highlightedText}
@@ -393,7 +435,8 @@ const PROMPT_TEMPLATES: Record<
     - Include personal and group discussion questions
     - Progress from surface to deep reflection
     - Connect to the sermon's main points
-    - Encourage honest self-examination`,
+    - Encourage honest self-examination
+    - Format using markdown: use bullet points (-) for questions, **bold** for question categories, and separate sections with ## headings`,
     human: `Create reflection questions for a sermon about: {context}
     
     {highlightedText}
@@ -409,7 +452,8 @@ const PROMPT_TEMPLATES: Record<
     - Include supporting examples and illustrations
     - Maintain the original voice and style
     - Add biblical support where appropriate
-    - Keep expansions focused and relevant`,
+    - Keep expansions focused and relevant
+    - Preserve any existing markdown formatting and use markdown appropriately for new structured content`,
     human: `Expand and develop this sermon content: {context}
     
     Content to expand:
@@ -454,7 +498,8 @@ const PROMPT_TEMPLATES: Record<
     - Add layers of meaning
     - Connect to broader biblical themes
     - Include scholarly perspectives when helpful
-    - Maintain accessibility`,
+    - Maintain accessibility
+    - Format using markdown: use **bold** for key theological concepts, > blockquotes for scripture references, and appropriate headings for organizing insights`,
     human: `Add depth to this sermon content: {context}
     
     Content to enhance:
@@ -469,7 +514,8 @@ const PROMPT_TEMPLATES: Record<
     - Provide practical, actionable content
     - Be encouraging but truthful
     - Use clear, accessible language
-    - Include relevant scripture references`,
+    - Include relevant scripture references
+    - Format using markdown: use appropriate headings (##, ###), **bold** for emphasis, bullet points for lists, and > blockquotes for scripture`,
     human: `{customPrompt}
     
     Sermon context: {context}
@@ -490,7 +536,8 @@ UNDERSTANDING INSTRUCTIONS:
 
 OUTPUT RULES:
 - Output ONLY the replacement text that should replace the selection - NO explanations, NO meta-commentary
-- Do NOT add markdown formatting unless the original text already uses it
+- Preserve any markdown formatting that exists in the original text (headings, bold, italic, lists, blockquotes)
+- Do NOT add new markdown formatting unless the original text already uses markdown
 - CRITICAL: Do NOT wrap your entire response in quotation marks
 - Match the tone, style, and sermon voice of the original text
 - Adjust length based on what the instruction requires (expansion, reduction, or similar length)
@@ -565,16 +612,23 @@ export class SermonAIResolver {
       // Get the appropriate prompt template
       const template = PROMPT_TEMPLATES[input.promptType];
 
-      // Build the prompt
+      // Build the prompt with base instruction prepended
+      const fullSystemPrompt = `${BASE_SYSTEM_INSTRUCTION}\n\n${template.system}`;
       const prompt = ChatPromptTemplate.fromMessages([
-        SystemMessagePromptTemplate.fromTemplate(template.system),
+        SystemMessagePromptTemplate.fromTemplate(fullSystemPrompt),
         HumanMessagePromptTemplate.fromTemplate(template.human),
       ]);
 
       // Prepare context variables
-      const contextText = input.sermonTitle
-        ? `"${input.sermonTitle}"${input.sermonContent ? `\n\nCurrent content:\n${input.sermonContent.substring(0, 2000)}` : ""}`
-        : input.customPrompt || "General sermon assistance";
+      let contextText = "";
+      if (input.sermonTitle) {
+        contextText = `Sermon Title: "${input.sermonTitle}"`;
+        if (input.sermonContent) {
+          contextText += `\n\nCurrent sermon content:\n${input.sermonContent.substring(0, 2000)}`;
+        }
+      } else {
+        contextText = input.customPrompt || "General sermon assistance";
+      }
 
       const highlightedTextSection = input.highlightedText
         ? `\n\nHighlighted/Selected text to work with:\n${input.highlightedText}`
@@ -585,14 +639,18 @@ export class SermonAIResolver {
         : "";
 
       const languageInstruction = input.language
-        ? `\n\nPlease respond in ${input.language}.`
+        ? `\n\nCRITICAL: Respond ENTIRELY in ${input.language}. Do not use English or any other language.`
+        : "";
+      
+      const reminderInstruction = input.sermonTitle
+        ? `\n\nREMINDER: All content must directly relate to and support the sermon title "${input.sermonTitle}".`
         : "";
 
       // Generate AI response
       const response = await prompt.pipe(chatModel).invoke({
         context: contextText,
         highlightedText: highlightedTextSection,
-        additionalContext: additionalContextSection + languageInstruction,
+        additionalContext: additionalContextSection + languageInstruction + reminderInstruction,
         customPrompt: input.customPrompt || "",
       });
 
@@ -860,9 +918,15 @@ export class SermonAIResolver {
       const template = PROMPT_TEMPLATES[input.promptType];
 
       // Prepare context variables
-      const contextText = input.sermonTitle
-        ? `"${input.sermonTitle}"${input.sermonContent ? `\n\nCurrent content:\n${input.sermonContent.substring(0, 2000)}` : ""}`
-        : input.customPrompt || "General sermon assistance";
+      let contextText = "";
+      if (input.sermonTitle) {
+        contextText = `Sermon Title: "${input.sermonTitle}"`;
+        if (input.sermonContent) {
+          contextText += `\n\nCurrent sermon content:\n${input.sermonContent.substring(0, 2000)}`;
+        }
+      } else {
+        contextText = input.customPrompt || "General sermon assistance";
+      }
 
       const highlightedTextSection = input.highlightedText
         ? `\n\nHighlighted/Selected text to work with:\n${input.highlightedText}`
@@ -873,25 +937,29 @@ export class SermonAIResolver {
         : "";
 
       const languageInstruction = input.language
-        ? `\n\nPlease respond in ${input.language}.`
+        ? `\n\nCRITICAL: Respond ENTIRELY in ${input.language}. Do not use English or any other language.`
+        : "";
+      
+      const reminderInstruction = input.sermonTitle
+        ? `\n\nREMINDER: All content must directly relate to and support the sermon title "${input.sermonTitle}".`
         : "";
 
-      // Build the full prompt
-      const systemPrompt = template.system;
+      // Build the full prompt with base instruction prepended
+      const systemPrompt = `${BASE_SYSTEM_INSTRUCTION}\n\n${template.system}`;
       const humanPrompt = template.human
         .replace("{context}", contextText)
         .replace("{highlightedText}", highlightedTextSection)
         .replace(
           "{additionalContext}",
-          additionalContextSection + languageInstruction,
+          additionalContextSection + languageInstruction + reminderInstruction,
         )
         .replace("{customPrompt}", input.customPrompt || "");
 
       // Collect full content while streaming
       let fullContent = "";
 
-      // Stream the response
-      await chatModel.invoke(
+      // Stream the response and capture the final result
+      const response = await chatModel.invoke(
         [
           { role: "system", content: systemPrompt },
           { role: "user", content: humanPrompt },
@@ -911,10 +979,14 @@ export class SermonAIResolver {
         },
       );
 
+      // Use the actual response content as the authoritative full text
+      // This ensures we get the complete response even if some tokens were missed during streaming
+      const actualFullContent = response.content.toString();
+
       // Send the full content for final replacement (ensures nothing is missing)
       await pubsub.publish(
         `SERMON_AI_STREAM_${input.sessionId}`,
-        `[FULL]${fullContent}`,
+        `[FULL]${actualFullContent}`,
       );
 
       // Send completion signal
