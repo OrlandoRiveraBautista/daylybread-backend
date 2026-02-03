@@ -27,6 +27,8 @@ import { MediaResolver as BibleBrainMediaResolver } from "./resolvers/Bible/Bibl
 import { MediaResolver } from "./resolvers/Platform/MediaResolver";
 import { MoodResolver } from "./resolvers/MoodResolver";
 import { NotificationResolver } from "./resolvers/NotificationResolver";
+import { SermonResolver } from "./resolvers/Platform/SermonResolver";
+import { SermonAIResolver } from "./resolvers/Platform/SermonAIResolver";
 
 dotenv.config();
 
@@ -56,6 +58,8 @@ const server = async () => {
       MediaResolver,
       MoodResolver,
       NotificationResolver,
+      SermonResolver,
+      SermonAIResolver,
     ],
   });
 

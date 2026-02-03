@@ -20,6 +20,7 @@ import {
   Notification,
   UserNotificationSettings,
 } from "./entities/Notification";
+import { Sermon } from "./entities/Sermon";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
     MoodCache,
     Notification,
     UserNotificationSettings,
+    Sermon,
   ],
   type: "mongo",
   dbName: "daylybread",
