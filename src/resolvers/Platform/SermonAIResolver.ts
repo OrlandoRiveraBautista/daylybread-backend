@@ -62,7 +62,7 @@ export enum SermonAIPromptType {
   IMPROVE_CLARITY = "IMPROVE_CLARITY",
   ADD_DEPTH = "ADD_DEPTH",
   CUSTOM = "CUSTOM",
-  
+
   // Inline editing
   INLINE_EDIT = "INLINE_EDIT",
 }
@@ -135,7 +135,10 @@ export class SermonAIResponse {
 /**
  * Prompt templates for different assistance types
  */
-const PROMPT_TEMPLATES: Record<SermonAIPromptType, { system: string; human: string }> = {
+const PROMPT_TEMPLATES: Record<
+  SermonAIPromptType,
+  { system: string; human: string }
+> = {
   // Structure prompts
   [SermonAIPromptType.OPENING_STORY]: {
     system: `You are BreadCrumbs, an expert sermon writing assistant. Your task is to help create an engaging opening story for a sermon.
@@ -475,22 +478,43 @@ const PROMPT_TEMPLATES: Record<SermonAIPromptType, { system: string; human: stri
     {additionalContext}`,
   },
   [SermonAIPromptType.INLINE_EDIT]: {
-    system: `You are BreadCrumbs, an inline text editor for sermon writing. Your job is to edit the selected text based on the user's instruction.
+    system: `You are BreadCrumbs, an intelligent inline text editor for sermon writing. Your job is to understand and execute the user's editing instruction on the selected text.
 
-CRITICAL RULES:
-- Output ONLY the replacement text - nothing else
-- Do NOT include explanations, introductions, or commentary
-- Do NOT use markdown formatting unless the original text uses it
-- Do NOT add quotes around your response
-- Match the tone and style of the original text
-- Keep similar length unless the instruction implies expansion/reduction
-- The output should seamlessly replace the selected text in the sermon`,
-    human: `INSTRUCTION: {customPrompt}
+UNDERSTANDING INSTRUCTIONS:
+- Carefully analyze what the user wants: rewrite, expand, shorten, rephrase, add to, remove from, clarify, etc.
+- If they want you to "add" or "expand" - make the text longer
+- If they want you to "shorten" or "condense" - make it briefer
+- If they want you to "rewrite" or "rephrase" - keep similar length but change wording
+- If they want you to "improve" or "enhance" - maintain the core message but make it better
+- If they give specific content to add - integrate it naturally into the text
 
-SELECTED TEXT TO EDIT:
+OUTPUT RULES:
+- Output ONLY the replacement text that should replace the selection - NO explanations, NO meta-commentary
+- Do NOT add markdown formatting unless the original text already uses it
+- CRITICAL: Do NOT wrap your entire response in quotation marks
+- Match the tone, style, and sermon voice of the original text
+- Adjust length based on what the instruction requires (expansion, reduction, or similar length)
+- The output must seamlessly replace the selected text and flow naturally with surrounding content
+
+QUOTING GUIDELINES:
+- Use quotation marks ONLY when citing sources within your text:
+  * Bible verses: "For God so loved the world..." (John 3:16)
+  * Historical figures or theologians: As C.S. Lewis wrote, "..."
+  * Direct quotes requiring attribution
+- Do NOT wrap your entire output in quotes
+- Do NOT add quotes around normal sermon content or narrative text
+- Your response should be raw text that directly replaces the selection
+
+FORMATTING:
+- Preserve the paragraph structure and flow
+- Maintain any existing formatting patterns (like bullet points, if present in original)
+- Keep the same narrative voice and perspective`,
+    human: `User's editing instruction: {customPrompt}
+
+Selected text to edit:
 {highlightedText}
 
-Output only the edited replacement text:`,
+Apply the instruction and provide only the edited replacement text:`,
   },
 };
 
@@ -503,7 +527,7 @@ export class SermonAIResolver {
   @Mutation(() => SermonAIResponse)
   async generateSermonContent(
     @Arg("input") input: SermonAIInput,
-    @Ctx() context: MyContext
+    @Ctx() context: MyContext,
   ): Promise<SermonAIResponse> {
     try {
       // Validate user authentication
@@ -512,14 +536,23 @@ export class SermonAIResolver {
         return { errors: [{ message: "User authentication required" }] };
       }
 
-      const user = await context.em.findOne(User, { _id: new ObjectId(req.userId) });
+      const user = await context.em.findOne(User, {
+        _id: new ObjectId(req.userId),
+      });
       if (!user) {
         return { errors: [{ message: "User not found" }] };
       }
 
       // Validate custom prompt if using CUSTOM type
-      if (input.promptType === SermonAIPromptType.CUSTOM && !input.customPrompt) {
-        return { errors: [{ message: "Custom prompt is required for CUSTOM prompt type" }] };
+      if (
+        input.promptType === SermonAIPromptType.CUSTOM &&
+        !input.customPrompt
+      ) {
+        return {
+          errors: [
+            { message: "Custom prompt is required for CUSTOM prompt type" },
+          ],
+        };
       }
 
       // Create ChatOpenAI instance
@@ -544,7 +577,7 @@ export class SermonAIResolver {
         : input.customPrompt || "General sermon assistance";
 
       const highlightedTextSection = input.highlightedText
-        ? `\n\nHighlighted/Selected text to work with:\n"${input.highlightedText}"`
+        ? `\n\nHighlighted/Selected text to work with:\n${input.highlightedText}`
         : "";
 
       const additionalContextSection = input.additionalContext
@@ -580,7 +613,9 @@ export class SermonAIResolver {
     } catch (error) {
       console.error("Error in generateSermonContent:", error);
       return {
-        errors: [{ message: "An unexpected error occurred. Please try again." }],
+        errors: [
+          { message: "An unexpected error occurred. Please try again." },
+        ],
       };
     }
   }
@@ -592,38 +627,158 @@ export class SermonAIResolver {
   async getSermonAIPromptTypes(): Promise<SermonAIPromptInfo[]> {
     return [
       // Structure
-      { type: SermonAIPromptType.OPENING_STORY, category: "Structure", label: "Opening Story", description: "Create an engaging opening narrative" },
-      { type: SermonAIPromptType.MAIN_POINTS, category: "Structure", label: "Main Points", description: "Develop clear main points" },
-      { type: SermonAIPromptType.CALL_TO_ACTION, category: "Structure", label: "Call to Action", description: "Craft a powerful conclusion" },
-      { type: SermonAIPromptType.TRANSITIONS, category: "Structure", label: "Transitions", description: "Create smooth section transitions" },
-      { type: SermonAIPromptType.SERMON_OUTLINE, category: "Structure", label: "Full Outline", description: "Generate complete sermon outline" },
+      {
+        type: SermonAIPromptType.OPENING_STORY,
+        category: "Structure",
+        label: "Opening Story",
+        description: "Create an engaging opening narrative",
+      },
+      {
+        type: SermonAIPromptType.MAIN_POINTS,
+        category: "Structure",
+        label: "Main Points",
+        description: "Develop clear main points",
+      },
+      {
+        type: SermonAIPromptType.CALL_TO_ACTION,
+        category: "Structure",
+        label: "Call to Action",
+        description: "Craft a powerful conclusion",
+      },
+      {
+        type: SermonAIPromptType.TRANSITIONS,
+        category: "Structure",
+        label: "Transitions",
+        description: "Create smooth section transitions",
+      },
+      {
+        type: SermonAIPromptType.SERMON_OUTLINE,
+        category: "Structure",
+        label: "Full Outline",
+        description: "Generate complete sermon outline",
+      },
 
       // Scripture
-      { type: SermonAIPromptType.RELEVANT_VERSES, category: "Scripture", label: "Relevant Verses", description: "Find supporting scripture" },
-      { type: SermonAIPromptType.HISTORICAL_CONTEXT, category: "Scripture", label: "Historical Context", description: "Understand the background" },
-      { type: SermonAIPromptType.CROSS_REFERENCES, category: "Scripture", label: "Cross References", description: "Find related passages" },
-      { type: SermonAIPromptType.TESTAMENT_CONNECTION, category: "Scripture", label: "Testament Connection", description: "Connect OT and NT" },
-      { type: SermonAIPromptType.VERSE_EXPLANATION, category: "Scripture", label: "Verse Explanation", description: "Deep dive into a passage" },
+      {
+        type: SermonAIPromptType.RELEVANT_VERSES,
+        category: "Scripture",
+        label: "Relevant Verses",
+        description: "Find supporting scripture",
+      },
+      {
+        type: SermonAIPromptType.HISTORICAL_CONTEXT,
+        category: "Scripture",
+        label: "Historical Context",
+        description: "Understand the background",
+      },
+      {
+        type: SermonAIPromptType.CROSS_REFERENCES,
+        category: "Scripture",
+        label: "Cross References",
+        description: "Find related passages",
+      },
+      {
+        type: SermonAIPromptType.TESTAMENT_CONNECTION,
+        category: "Scripture",
+        label: "Testament Connection",
+        description: "Connect OT and NT",
+      },
+      {
+        type: SermonAIPromptType.VERSE_EXPLANATION,
+        category: "Scripture",
+        label: "Verse Explanation",
+        description: "Deep dive into a passage",
+      },
 
       // Illustrations
-      { type: SermonAIPromptType.PERSONAL_TESTIMONY, category: "Illustrations", label: "Personal Testimony", description: "Framework for testimonies" },
-      { type: SermonAIPromptType.MODERN_EXAMPLE, category: "Illustrations", label: "Modern Example", description: "Contemporary illustrations" },
-      { type: SermonAIPromptType.DAILY_LIFE_ANALOGY, category: "Illustrations", label: "Daily Life Analogy", description: "Relatable analogies" },
-      { type: SermonAIPromptType.CURRENT_EVENTS, category: "Illustrations", label: "Current Events", description: "Timely connections" },
+      {
+        type: SermonAIPromptType.PERSONAL_TESTIMONY,
+        category: "Illustrations",
+        label: "Personal Testimony",
+        description: "Framework for testimonies",
+      },
+      {
+        type: SermonAIPromptType.MODERN_EXAMPLE,
+        category: "Illustrations",
+        label: "Modern Example",
+        description: "Contemporary illustrations",
+      },
+      {
+        type: SermonAIPromptType.DAILY_LIFE_ANALOGY,
+        category: "Illustrations",
+        label: "Daily Life Analogy",
+        description: "Relatable analogies",
+      },
+      {
+        type: SermonAIPromptType.CURRENT_EVENTS,
+        category: "Illustrations",
+        label: "Current Events",
+        description: "Timely connections",
+      },
 
       // Application
-      { type: SermonAIPromptType.PRACTICAL_APPLICATION, category: "Application", label: "Practical Application", description: "Real-world applications" },
-      { type: SermonAIPromptType.ADDRESS_CHALLENGES, category: "Application", label: "Address Challenges", description: "Handle objections" },
-      { type: SermonAIPromptType.ACTIONABLE_STEPS, category: "Application", label: "Actionable Steps", description: "Specific action items" },
-      { type: SermonAIPromptType.REFLECTION_QUESTIONS, category: "Application", label: "Reflection Questions", description: "Discussion questions" },
+      {
+        type: SermonAIPromptType.PRACTICAL_APPLICATION,
+        category: "Application",
+        label: "Practical Application",
+        description: "Real-world applications",
+      },
+      {
+        type: SermonAIPromptType.ADDRESS_CHALLENGES,
+        category: "Application",
+        label: "Address Challenges",
+        description: "Handle objections",
+      },
+      {
+        type: SermonAIPromptType.ACTIONABLE_STEPS,
+        category: "Application",
+        label: "Actionable Steps",
+        description: "Specific action items",
+      },
+      {
+        type: SermonAIPromptType.REFLECTION_QUESTIONS,
+        category: "Application",
+        label: "Reflection Questions",
+        description: "Discussion questions",
+      },
 
       // General
-      { type: SermonAIPromptType.EXPAND_CONTENT, category: "General", label: "Expand Content", description: "Develop existing content" },
-      { type: SermonAIPromptType.SUMMARIZE, category: "General", label: "Summarize", description: "Condense content" },
-      { type: SermonAIPromptType.IMPROVE_CLARITY, category: "General", label: "Improve Clarity", description: "Enhance readability" },
-      { type: SermonAIPromptType.ADD_DEPTH, category: "General", label: "Add Depth", description: "Deepen theological insight" },
-      { type: SermonAIPromptType.CUSTOM, category: "General", label: "Custom Prompt", description: "Your own prompt" },
-      { type: SermonAIPromptType.INLINE_EDIT, category: "Inline", label: "Inline Edit", description: "Edit selected text directly" },
+      {
+        type: SermonAIPromptType.EXPAND_CONTENT,
+        category: "General",
+        label: "Expand Content",
+        description: "Develop existing content",
+      },
+      {
+        type: SermonAIPromptType.SUMMARIZE,
+        category: "General",
+        label: "Summarize",
+        description: "Condense content",
+      },
+      {
+        type: SermonAIPromptType.IMPROVE_CLARITY,
+        category: "General",
+        label: "Improve Clarity",
+        description: "Enhance readability",
+      },
+      {
+        type: SermonAIPromptType.ADD_DEPTH,
+        category: "General",
+        label: "Add Depth",
+        description: "Deepen theological insight",
+      },
+      {
+        type: SermonAIPromptType.CUSTOM,
+        category: "General",
+        label: "Custom Prompt",
+        description: "Your own prompt",
+      },
+      {
+        type: SermonAIPromptType.INLINE_EDIT,
+        category: "Inline",
+        label: "Inline Edit",
+        description: "Edit selected text directly",
+      },
     ];
   }
 
@@ -635,7 +790,7 @@ export class SermonAIResolver {
   })
   sermonAIStream(
     @Root() token: string,
-    @Arg("sessionId") _sessionId: string
+    @Arg("sessionId") _sessionId: string,
   ): string {
     return token;
   }
@@ -648,31 +803,48 @@ export class SermonAIResolver {
   async streamSermonContent(
     @Arg("input") input: SermonAIInput,
     @Ctx() context: MyContext,
-    @PubSub() pubsub: PubSubEngine
+    @PubSub() pubsub: PubSubEngine,
   ): Promise<boolean> {
     try {
       // Validate session ID for streaming
       if (!input.sessionId) {
-        await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, "[ERROR] Session ID is required for streaming");
+        await pubsub.publish(
+          `SERMON_AI_STREAM_${input.sessionId}`,
+          "[ERROR] Session ID is required for streaming",
+        );
         return false;
       }
 
       // Validate user authentication
       const req = context.request as any;
       if (!req.userId) {
-        await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, "[ERROR] User authentication required");
+        await pubsub.publish(
+          `SERMON_AI_STREAM_${input.sessionId}`,
+          "[ERROR] User authentication required",
+        );
         return false;
       }
 
-      const user = await context.em.findOne(User, { _id: new ObjectId(req.userId) });
+      const user = await context.em.findOne(User, {
+        _id: new ObjectId(req.userId),
+      });
       if (!user) {
-        await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, "[ERROR] User not found");
+        await pubsub.publish(
+          `SERMON_AI_STREAM_${input.sessionId}`,
+          "[ERROR] User not found",
+        );
         return false;
       }
 
       // Validate custom prompt if using CUSTOM type
-      if (input.promptType === SermonAIPromptType.CUSTOM && !input.customPrompt) {
-        await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, "[ERROR] Custom prompt is required");
+      if (
+        input.promptType === SermonAIPromptType.CUSTOM &&
+        !input.customPrompt
+      ) {
+        await pubsub.publish(
+          `SERMON_AI_STREAM_${input.sessionId}`,
+          "[ERROR] Custom prompt is required",
+        );
         return false;
       }
 
@@ -693,7 +865,7 @@ export class SermonAIResolver {
         : input.customPrompt || "General sermon assistance";
 
       const highlightedTextSection = input.highlightedText
-        ? `\n\nHighlighted/Selected text to work with:\n"${input.highlightedText}"`
+        ? `\n\nHighlighted/Selected text to work with:\n${input.highlightedText}`
         : "";
 
       const additionalContextSection = input.additionalContext
@@ -709,12 +881,15 @@ export class SermonAIResolver {
       const humanPrompt = template.human
         .replace("{context}", contextText)
         .replace("{highlightedText}", highlightedTextSection)
-        .replace("{additionalContext}", additionalContextSection + languageInstruction)
+        .replace(
+          "{additionalContext}",
+          additionalContextSection + languageInstruction,
+        )
         .replace("{customPrompt}", input.customPrompt || "");
 
       // Collect full content while streaming
       let fullContent = "";
-      
+
       // Stream the response
       await chatModel.invoke(
         [
@@ -726,23 +901,32 @@ export class SermonAIResolver {
             {
               async handleLLMNewToken(token: string) {
                 fullContent += token;
-                await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, token);
+                await pubsub.publish(
+                  `SERMON_AI_STREAM_${input.sessionId}`,
+                  token,
+                );
               },
             },
           ],
-        }
+        },
       );
 
       // Send the full content for final replacement (ensures nothing is missing)
-      await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, `[FULL]${fullContent}`);
-      
+      await pubsub.publish(
+        `SERMON_AI_STREAM_${input.sessionId}`,
+        `[FULL]${fullContent}`,
+      );
+
       // Send completion signal
       await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, "[DONE]");
 
       return true;
     } catch (error) {
       console.error("Error in streamSermonContent:", error);
-      await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, "[ERROR] An unexpected error occurred");
+      await pubsub.publish(
+        `SERMON_AI_STREAM_${input.sessionId}`,
+        "[ERROR] An unexpected error occurred",
+      );
       return false;
     }
   }
