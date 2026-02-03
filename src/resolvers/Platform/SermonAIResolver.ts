@@ -62,6 +62,9 @@ export enum SermonAIPromptType {
   IMPROVE_CLARITY = "IMPROVE_CLARITY",
   ADD_DEPTH = "ADD_DEPTH",
   CUSTOM = "CUSTOM",
+  
+  // Inline editing
+  INLINE_EDIT = "INLINE_EDIT",
 }
 
 registerEnumType(SermonAIPromptType, {
@@ -471,6 +474,24 @@ const PROMPT_TEMPLATES: Record<SermonAIPromptType, { system: string; human: stri
     {highlightedText}
     {additionalContext}`,
   },
+  [SermonAIPromptType.INLINE_EDIT]: {
+    system: `You are BreadCrumbs, an inline text editor for sermon writing. Your job is to edit the selected text based on the user's instruction.
+
+CRITICAL RULES:
+- Output ONLY the replacement text - nothing else
+- Do NOT include explanations, introductions, or commentary
+- Do NOT use markdown formatting unless the original text uses it
+- Do NOT add quotes around your response
+- Match the tone and style of the original text
+- Keep similar length unless the instruction implies expansion/reduction
+- The output should seamlessly replace the selected text in the sermon`,
+    human: `INSTRUCTION: {customPrompt}
+
+SELECTED TEXT TO EDIT:
+{highlightedText}
+
+Output only the edited replacement text:`,
+  },
 };
 
 @Resolver()
@@ -602,6 +623,7 @@ export class SermonAIResolver {
       { type: SermonAIPromptType.IMPROVE_CLARITY, category: "General", label: "Improve Clarity", description: "Enhance readability" },
       { type: SermonAIPromptType.ADD_DEPTH, category: "General", label: "Add Depth", description: "Deepen theological insight" },
       { type: SermonAIPromptType.CUSTOM, category: "General", label: "Custom Prompt", description: "Your own prompt" },
+      { type: SermonAIPromptType.INLINE_EDIT, category: "Inline", label: "Inline Edit", description: "Edit selected text directly" },
     ];
   }
 
