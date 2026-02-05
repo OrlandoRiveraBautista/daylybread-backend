@@ -8,7 +8,7 @@ import {
   Field,
   ObjectType,
 } from "type-graphql";
-import { NFCConfig, SocialMediaSettings } from "../../entities/NFCConfig";
+import { NFCConfig, SocialMediaSettings, TileConfigInput } from "../../entities/NFCConfig";
 import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
@@ -95,6 +95,14 @@ class NFCConfigInput {
   /** Optional media ID for file-type configurations */
   @Field(() => String, { nullable: true })
   mediaId?: string;
+
+  /** iPhone-style home screen tiles configuration */
+  @Field(() => [TileConfigInput], { nullable: true })
+  tiles?: TileConfigInput[];
+
+  /** Wallpaper/background for the home screen */
+  @Field(() => String, { nullable: true })
+  wallpaper?: string;
 }
 
 /**
@@ -387,6 +395,58 @@ export class NFCConfigResolver {
       if (media) {
         await em.removeAndFlush(media);
       }
+    }
+
+    return { results: nfcConfig };
+  }
+
+  /**
+   * Updates only the tiles layout for an NFC configuration.
+   * Optimized for the home screen editor.
+   *
+   * @param id - The ObjectId string of the NFC configuration to update
+   * @param tiles - The new tiles configuration
+   * @param wallpaper - Optional wallpaper setting
+   * @param em - Database entity manager from GraphQL context
+   * @returns Promise<NFCConfigResponse> - The updated NFC configuration or error details
+   */
+  @ValidateUser()
+  @Mutation(() => NFCConfigResponse)
+  async updateNFCTiles(
+    @Arg("id", () => String) id: string,
+    @Arg("tiles", () => [TileConfigInput]) tiles: TileConfigInput[],
+    @Arg("wallpaper", () => String, { nullable: true }) wallpaper: string | null,
+    @Ctx() { em }: MyContext
+  ): Promise<NFCConfigResponse> {
+    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+    
+    if (!nfcConfig) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "NFC config not found",
+          },
+        ],
+      };
+    }
+
+    try {
+      nfcConfig.tiles = tiles;
+      if (wallpaper !== null) {
+        nfcConfig.wallpaper = wallpaper;
+      }
+      
+      await em.persistAndFlush(nfcConfig);
+    } catch (err) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to update tiles",
+          },
+        ],
+      };
     }
 
     return { results: nfcConfig };
