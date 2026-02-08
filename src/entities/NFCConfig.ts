@@ -2,45 +2,15 @@ import { Entity, PrimaryKey, Property, ManyToOne } from "@mikro-orm/core";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType } from "type-graphql";
 import { User } from "./User";
-import { Media } from "./Media";
+import { HomeScreen } from "./HomeScreen";
 
-@ObjectType()
-class mainButton {
-  @Field(() => String)
-  @Property()
-  url: string = "";
-
-  @Field(() => String)
-  @Property()
-  text: string = "";
-}
-
-@ObjectType()
-export class SocialMediaSettings {
-  @Field(() => Boolean)
-  @Property()
-  facebook: boolean = false;
-
-  @Field(() => Boolean)
-  @Property()
-  instagram: boolean = false;
-
-  @Field(() => Boolean)
-  @Property()
-  twitter: boolean = false;
-}
-
-@ObjectType()
-export class LinkSettings {
-  @Field(() => Boolean)
-  @Property()
-  isVisible: boolean = false;
-
-  @Field(() => String)
-  @Property()
-  url: string = "";
-}
-
+/**
+ * NFCConfig Entity - Represents a physical NFC device/tag
+ * Each physical tag has its own NFCConfig
+ * One NFCConfig per physical device
+ * User "owns" the device by being the owner
+ * Can be assigned to a HomeScreen
+ */
 @Entity()
 @ObjectType()
 export class NFCConfig {
@@ -60,48 +30,46 @@ export class NFCConfig {
   @ManyToOne(() => User)
   owner!: User;
 
+  /**
+   * Unique physical tag ID (the ID on the actual NFC tag)
+   * Note: unique constraint will be added after migration is complete
+   */
   @Field(() => String)
   @Property()
-  type: string = "link";
+  nfcId!: string;
 
-  @Field(() => [String])
-  @Property({ type: "array" })
-  nfcIds: string[] = [];
-
-  @Field(() => mainButton)
-  @Property({ type: mainButton })
-  mainButton!: mainButton;
-
+  /**
+   * User-defined name for this device
+   */
   @Field(() => String)
   @Property()
-  title!: string;
+  name!: string; // e.g., "Church Entrance Tag", "Lobby Card"
 
-  @Field(() => String)
-  @Property()
-  description!: string;
-
-  // Store the media ID in the database
+  /**
+   * Type of physical device
+   */
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
-  mediaId?: string;
+  deviceType?: string; // e.g., "church-tap", "card-tap-white", "card-tap-transparent"
 
-  // Virtual field to get the media
-  @Field(() => Media, { nullable: true })
-  media?: Media;
+  /**
+   * Reference to the HomeScreen this device displays
+   */
+  @Field(() => HomeScreen, { nullable: true })
+  @ManyToOne(() => HomeScreen, { nullable: true })
+  homeScreen?: HomeScreen;
 
-  @Field(() => SocialMediaSettings)
-  @Property({ type: SocialMediaSettings })
-  socialMedia: SocialMediaSettings = new SocialMediaSettings();
+  /**
+   * Total number of NFC scans
+   */
+  @Field(() => Number)
+  @Property({ default: 0 })
+  views: number = 0;
 
-  @Field(() => LinkSettings, { nullable: true })
-  @Property({ type: LinkSettings, nullable: true })
-  givingLink?: LinkSettings;
-
-  @Field(() => LinkSettings, { nullable: true })
-  @Property({ type: LinkSettings, nullable: true })
-  memberRegistrationLink?: LinkSettings;
-
-  @Field(() => LinkSettings, { nullable: true })
-  @Property({ type: LinkSettings, nullable: true })
-  eventsLink?: LinkSettings;
+  /**
+   * Last time this physical tag was scanned
+   */
+  @Field(() => String, { nullable: true })
+  @Property({ type: "date", nullable: true })
+  lastScannedAt?: Date;
 }

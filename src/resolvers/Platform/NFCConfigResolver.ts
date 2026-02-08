@@ -8,93 +8,63 @@ import {
   Field,
   ObjectType,
 } from "type-graphql";
-import { NFCConfig, SocialMediaSettings } from "../../entities/NFCConfig";
+import { NFCConfig } from "../../entities/NFCConfig";
+import { HomeScreen } from "../../entities/HomeScreen";
 import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
 import { ValidateUser } from "../../middlewares/userAuth";
-import { Media } from "../../entities/Media";
 
-/**
- * Input type for configuring social media settings visibility
- */
-@InputType()
-class SocialMediaSettingsInput {
-  @Field(() => Boolean, { nullable: true })
-  facebook?: boolean;
-
-  @Field(() => Boolean, { nullable: true })
-  instagram?: boolean;
-
-  @Field(() => Boolean, { nullable: true })
-  twitter?: boolean;
-}
-
-/**
- * Input type for configuring link settings with visibility and URL
- */
-@InputType()
-class LinkSettingsInput {
-  @Field(() => Boolean, { nullable: true })
-  isVisible?: boolean;
-
-  @Field(() => String, { nullable: true })
-  url?: string;
-}
-
-/**
- * Input type for the main button configuration
- */
-@InputType()
-class MainButtonInput {
-  @Field(() => String)
-  url!: string;
-
-  @Field(() => String)
-  text!: string;
-}
+// Admin user ID that has access to admin operations
+const SUDO_ADMIN_USER_ID = "65239e9380cfeb07c8fb0145";
 
 /**
  * Input type for creating or updating NFC configuration
  */
 @InputType()
 class NFCConfigInput {
-  /** The type of NFC config (e.g., "file", "url") */
+  /** Unique physical tag ID */
   @Field(() => String)
-  type!: string;
+  nfcId!: string;
 
-  /** The title of the NFC configuration */
+  /** User-defined name for this device */
   @Field(() => String)
-  title!: string;
+  name!: string;
 
-  /** The description of the NFC configuration */
-  @Field(() => String)
-  description!: string;
-
-  /** Main button configuration */
-  @Field(() => MainButtonInput)
-  mainButton!: MainButtonInput;
-
-  /** Social media settings configuration */
-  @Field(() => SocialMediaSettingsInput, { nullable: true })
-  socialMedia?: SocialMediaSettingsInput;
-
-  /** Giving/donation link configuration */
-  @Field(() => LinkSettingsInput, { nullable: true })
-  givingLink?: LinkSettingsInput;
-
-  /** Member registration link configuration */
-  @Field(() => LinkSettingsInput, { nullable: true })
-  memberRegistrationLink?: LinkSettingsInput;
-
-  /** Events link configuration */
-  @Field(() => LinkSettingsInput, { nullable: true })
-  eventsLink?: LinkSettingsInput;
-
-  /** Optional media ID for file-type configurations */
+  /** Type of physical device */
   @Field(() => String, { nullable: true })
-  mediaId?: string;
+  deviceType?: string;
+
+  /** HomeScreen ID to assign to this device */
+  @Field(() => String, { nullable: true })
+  homeScreenId?: string;
+}
+
+/**
+ * Input type for admin creating NFC configuration for any user
+ */
+@InputType()
+class AdminNFCConfigInput {
+  /** Unique physical tag ID */
+  @Field(() => String)
+  nfcId!: string;
+
+  /** User-defined name for this device */
+  @Field(() => String)
+  name!: string;
+
+  /** Type of physical device */
+  @Field(() => String, { nullable: true })
+  deviceType?: string;
+
+  /** HomeScreen ID to assign to this device */
+  @Field(() => String, { nullable: true })
+  homeScreenId?: string;
+
+  /** Owner user ID - required for admin creation */
+  @Field(() => String)
+  ownerId!: string;
 }
 
 /**
@@ -110,6 +80,18 @@ class NFCConfigResponse {
 }
 
 /**
+ * Response type for multiple NFC configurations
+ */
+@ObjectType()
+class NFCConfigsResponse {
+  @Field(() => [NFCConfig], { nullable: true })
+  results?: NFCConfig[];
+
+  @Field(() => [FieldError], { nullable: true })
+  errors?: FieldError[];
+}
+
+/**
  * GraphQL resolver for NFC configuration operations.
  * Handles creating, reading, updating, and deleting NFC configurations
  * with associated media and user authentication.
@@ -117,60 +99,7 @@ class NFCConfigResponse {
 @Resolver()
 export class NFCConfigResolver {
   /**
-   * Populates the media field of an NFCConfig entity with the associated Media object.
-   * Only performs the population if the NFCConfig has a mediaId and type is "file".
-   *
-   * @param nfcConfig - The NFCConfig entity to populate with media data
-   * @param em - The MikroORM entity manager instance for database operations
-   * @returns Promise<void> - Resolves when the media population is complete
-   */
-  static async populateMedia(nfcConfig: NFCConfig, em: any): Promise<void> {
-    if (nfcConfig.mediaId && nfcConfig.type === "file") {
-      const media = await em.findOne(Media, {
-        _id: new ObjectId(nfcConfig.mediaId),
-      });
-      if (media) {
-        nfcConfig.media = media;
-      }
-    }
-  }
-
-  /**
-   * Efficiently populates media for multiple NFCConfig entities using batch queries.
-   * Reduces database calls by fetching all required media in a single query.
-   *
-   * @param nfcConfigs - Array of NFCConfig entities to populate with media
-   * @param em - The MikroORM entity manager instance for database operations
-   * @returns Promise<void> - Resolves when all media population is complete
-   */
-  static async populateMediaForConfigs(
-    nfcConfigs: NFCConfig[],
-    em: any
-  ): Promise<void> {
-    const mediaIds = nfcConfigs
-      .filter((config) => config.mediaId && config.type === "file")
-      .map((config) => new ObjectId(config.mediaId!));
-
-    if (mediaIds.length === 0) return;
-
-    const mediaItems = await em.find(Media, { _id: { $in: mediaIds } });
-    const mediaMap = new Map(
-      mediaItems.map((media: Media) => [media._id.toString(), media])
-    );
-
-    nfcConfigs.forEach((config) => {
-      if (config.mediaId && config.type === "file") {
-        const media = mediaMap.get(config.mediaId);
-        if (media) {
-          config.media = media as Media;
-        }
-      }
-    });
-  }
-
-  /**
    * Retrieves a single NFC configuration by ID.
-   * Automatically populates associated media if applicable.
    *
    * @param id - The ObjectId string of the NFC configuration to retrieve
    * @param em - Database entity manager from GraphQL context
@@ -178,7 +107,11 @@ export class NFCConfigResolver {
    */
   @Query(() => NFCConfigResponse)
   async getNFCConfig(@Arg("id") id: string, @Ctx() { em }: MyContext) {
-    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
     if (!nfcConfig) {
       return {
         errors: [
@@ -189,26 +122,47 @@ export class NFCConfigResolver {
         ],
       };
     }
-
-    await NFCConfigResolver.populateMedia(nfcConfig, em);
 
     return { results: nfcConfig };
   }
 
   /**
-   * Retrieves an NFC configuration by owner ID.
-   * Useful for getting a user's current NFC configuration.
+   * Retrieves all NFC configurations (devices) owned by a user.
    *
-   * @param ownerId - The ObjectId string of the user who owns the NFC configuration
+   * @param ownerId - The ObjectId string of the user who owns the NFC configurations
+   * @param em - Database entity manager from GraphQL context
+   * @returns Promise<NFCConfigsResponse> - The NFC configurations or error details
+   */
+  @Query(() => NFCConfigsResponse)
+  async getNFCConfigsByOwner(
+    @Arg("ownerId") ownerId: string,
+    @Ctx() { em }: MyContext,
+  ) {
+    const nfcConfigs = await em.find(
+      NFCConfig,
+      { owner: new ObjectId(ownerId) },
+      { populate: ["homeScreen"] },
+    );
+    return { results: nfcConfigs };
+  }
+
+  /**
+   * Retrieves an NFC configuration by its physical nfcId.
+   *
+   * @param nfcId - The unique physical tag ID
    * @param em - Database entity manager from GraphQL context
    * @returns Promise<NFCConfigResponse> - The NFC configuration or error details
    */
   @Query(() => NFCConfigResponse)
-  async getNFCConfigByOwner(
-    @Arg("ownerId") ownerId: string,
-    @Ctx() { em }: MyContext
+  async getNFCConfigByNfcId(
+    @Arg("nfcId") nfcId: string,
+    @Ctx() { em }: MyContext,
   ) {
-    const nfcConfig = await em.findOne(NFCConfig, { owner: ownerId });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { nfcId },
+      { populate: ["owner", "homeScreen"] },
+    );
     if (!nfcConfig) {
       return {
         errors: [
@@ -219,8 +173,6 @@ export class NFCConfigResolver {
         ],
       };
     }
-
-    await NFCConfigResolver.populateMedia(nfcConfig, em);
 
     return { results: nfcConfig };
   }
@@ -238,7 +190,7 @@ export class NFCConfigResolver {
   @Mutation(() => NFCConfigResponse)
   async createNFCConfig(
     @Arg("options", () => NFCConfigInput) options: NFCConfigInput,
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em, request }: MyContext,
   ): Promise<NFCConfigResponse> {
     const req = request as any;
 
@@ -266,25 +218,50 @@ export class NFCConfigResolver {
       };
     }
 
-    const socialMediaSettings = new SocialMediaSettings();
-    if (options.socialMedia) {
-      socialMediaSettings.facebook = options.socialMedia.facebook ?? false;
-      socialMediaSettings.instagram = options.socialMedia.instagram ?? false;
-      socialMediaSettings.twitter = options.socialMedia.twitter ?? false;
+    // Check if nfcId is already in use
+    const existingDevice = await em.findOne(NFCConfig, {
+      nfcId: options.nfcId,
+    });
+    if (existingDevice) {
+      return {
+        errors: [
+          {
+            field: "nfcId",
+            message: "This NFC device ID is already registered",
+          },
+        ],
+      };
+    }
+
+    // Find HomeScreen if provided
+    let homeScreen = null;
+    if (options.homeScreenId) {
+      homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(options.homeScreenId),
+      });
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "homeScreenId",
+              message: "Home screen not found",
+            },
+          ],
+        };
+      }
     }
 
     const nfcConfig = em.create(NFCConfig, {
-      ...options,
+      nfcId: options.nfcId,
+      name: options.name,
+      deviceType: options.deviceType,
       owner: user,
-      nfcIds: [],
-      socialMedia: socialMediaSettings,
+      homeScreen: homeScreen || undefined,
+      views: 0,
     });
 
     try {
       await em.persistAndFlush(nfcConfig);
-
-      // Populate the media
-      await NFCConfigResolver.populateMedia(nfcConfig, em);
     } catch (err) {
       return {
         errors: [
@@ -313,10 +290,14 @@ export class NFCConfigResolver {
   async updateNFCConfig(
     @Arg("options", () => NFCConfigInput) options: NFCConfigInput,
     @Arg("id", () => String) id: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em }: MyContext,
   ): Promise<NFCConfigResponse> {
     // Check if the NFC config exists
-    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
     if (!nfcConfig) {
       return {
         errors: [
@@ -328,10 +309,30 @@ export class NFCConfigResolver {
       };
     }
 
+    // Find HomeScreen if provided
+    let homeScreen = null;
+    if (options.homeScreenId) {
+      homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(options.homeScreenId),
+      });
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "homeScreenId",
+              message: "Home screen not found",
+            },
+          ],
+        };
+      }
+    }
+
     // Update the NFC config
     try {
       em.assign(nfcConfig, {
-        ...options,
+        name: options.name,
+        deviceType: options.deviceType,
+        homeScreen: homeScreen || undefined,
       });
 
       // Save the NFC config
@@ -351,9 +352,8 @@ export class NFCConfigResolver {
   }
 
   /**
-   * Deletes an NFC configuration and its associated media.
+   * Deletes an NFC configuration.
    * Requires user authentication via ValidateUser middleware.
-   * Also removes any associated media files from the database.
    *
    * @param id - The ObjectId string of the NFC configuration to delete
    * @param em - Database entity manager from GraphQL context
@@ -379,16 +379,301 @@ export class NFCConfigResolver {
     // Delete the NFC config
     await em.removeAndFlush(nfcConfig);
 
-    // Delete the media if it exists
-    if (nfcConfig.mediaId) {
-      const media = await em.findOne(Media, {
-        _id: new ObjectId(nfcConfig.mediaId),
+    return { results: nfcConfig };
+  }
+
+  /**
+   * Assigns a HomeScreen to an NFC device.
+   *
+   * @param id - The ObjectId string of the NFC configuration
+   * @param homeScreenId - The HomeScreen ID to assign (null to unassign)
+   * @param em - Database entity manager from GraphQL context
+   * @returns Promise<NFCConfigResponse> - The updated NFC configuration or error details
+   */
+  @ValidateUser()
+  @Mutation(() => NFCConfigResponse)
+  async assignHomeScreenToNFCConfig(
+    @Arg("id", () => String) id: string,
+    @Arg("homeScreenId", () => String, { nullable: true })
+    homeScreenId: string | null,
+    @Ctx() { em }: MyContext,
+  ): Promise<NFCConfigResponse> {
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
+    if (!nfcConfig) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "NFC config not found",
+          },
+        ],
+      };
+    }
+
+    if (homeScreenId) {
+      const homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(homeScreenId),
       });
-      if (media) {
-        await em.removeAndFlush(media);
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "HomeScreen",
+              message: "Home screen not found",
+            },
+          ],
+        };
       }
+      nfcConfig.homeScreen = homeScreen;
+    } else {
+      // Unassign the device
+      nfcConfig.homeScreen = undefined;
+    }
+
+    try {
+      await em.persistAndFlush(nfcConfig);
+    } catch (err) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to assign home screen to NFC device",
+          },
+        ],
+      };
     }
 
     return { results: nfcConfig };
+  }
+
+  /**
+   * Increments the view count for an NFC device (when the physical tag is scanned).
+   *
+   * @param id - The ObjectId string of the NFC configuration
+   * @param em - Database entity manager from GraphQL context
+   * @returns Promise<NFCConfigResponse> - The updated NFC configuration or error details
+   */
+  @Mutation(() => NFCConfigResponse)
+  async incrementNFCConfigViews(
+    @Arg("id", () => String) id: string,
+    @Ctx() { em }: MyContext,
+  ): Promise<NFCConfigResponse> {
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
+
+    if (!nfcConfig) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "NFC config not found",
+          },
+        ],
+      };
+    }
+
+    try {
+      nfcConfig.views += 1;
+      nfcConfig.lastScannedAt = new Date();
+      await em.persistAndFlush(nfcConfig);
+    } catch (err) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to increment views",
+          },
+        ],
+      };
+    }
+
+    return { results: nfcConfig };
+  }
+
+  /**
+   * Admin: Creates a new NFC configuration for any user.
+   * Only accessible by sudo admin users.
+   *
+   * @param options - The NFC configuration data including owner ID
+   * @param em - Database entity manager from GraphQL context
+   * @param request - HTTP request object containing user authentication data
+   * @returns Promise<NFCConfigResponse> - The created NFC configuration or error details
+   */
+  @ValidateUser()
+  @Mutation(() => NFCConfigResponse)
+  async adminCreateNFCConfig(
+    @Arg("options", () => AdminNFCConfigInput) options: AdminNFCConfigInput,
+    @Ctx() { em, request }: MyContext,
+  ): Promise<NFCConfigResponse> {
+    const req = request as any;
+
+    // Check if user is authenticated
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
+    // Check if user is sudo admin
+    if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
+      return {
+        errors: [
+          {
+            field: "Authorization",
+            message:
+              "You do not have permission to create NFC configs for other users.",
+          },
+        ],
+      };
+    }
+
+    // Find the owner user
+    const owner = await em.findOne(User, {
+      _id: new ObjectId(options.ownerId),
+    });
+    if (!owner) {
+      return {
+        errors: [
+          {
+            field: "ownerId",
+            message: "Owner user not found.",
+          },
+        ],
+      };
+    }
+
+    // Check if nfcId is already in use
+    const existingDevice = await em.findOne(NFCConfig, {
+      nfcId: options.nfcId,
+    });
+    if (existingDevice) {
+      return {
+        errors: [
+          {
+            field: "nfcId",
+            message: "This NFC device ID is already registered",
+          },
+        ],
+      };
+    }
+
+    // Find HomeScreen if provided
+    let homeScreen = null;
+    if (options.homeScreenId) {
+      homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(options.homeScreenId),
+      });
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "homeScreenId",
+              message: "Home screen not found",
+            },
+          ],
+        };
+      }
+    }
+
+    const nfcConfig = em.create(NFCConfig, {
+      nfcId: options.nfcId,
+      name: options.name,
+      deviceType: options.deviceType,
+      owner: owner,
+      homeScreen: homeScreen || undefined,
+      views: 0,
+    });
+
+    try {
+      await em.persistAndFlush(nfcConfig);
+    } catch (err) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to create NFC config",
+          },
+        ],
+      };
+    }
+
+    return { results: nfcConfig };
+  }
+
+  /**
+   * Admin: Get all NFC configurations.
+   * Only accessible by sudo admin users.
+   *
+   * @param limit - Maximum number of results to return (default: 50)
+   * @param em - Database entity manager from GraphQL context
+   * @param request - HTTP request object containing user authentication data
+   * @returns Promise<NFCConfigsResponse> - All NFC configurations or error details
+   */
+  @ValidateUser()
+  @Query(() => NFCConfigsResponse)
+  async adminGetAllNFCConfigs(
+    @Arg("limit", () => Number, { nullable: true }) limit: number = 50,
+    @Ctx() { em, request }: MyContext,
+  ): Promise<NFCConfigsResponse> {
+    const req = request as any;
+
+    // Check if user is authenticated
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
+    // Check if user is sudo admin
+    if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
+      return {
+        errors: [
+          {
+            field: "Authorization",
+            message: "You do not have permission to view all NFC configs.",
+          },
+        ],
+      };
+    }
+
+    try {
+      const nfcConfigs = await em.find(
+        NFCConfig,
+        {},
+        {
+          limit,
+          populate: ["owner", "homeScreen"],
+          orderBy: { createdAt: "DESC" },
+        },
+      );
+      return { results: nfcConfigs };
+    } catch (error) {
+      console.error("Error fetching all NFC configs:", error);
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to fetch NFC configs.",
+          },
+        ],
+      };
+    }
   }
 }
