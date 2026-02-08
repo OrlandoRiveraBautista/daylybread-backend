@@ -16,6 +16,9 @@ import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
 import { ValidateUser } from "../../middlewares/userAuth";
 
+// Admin user ID that has access to admin operations
+const SUDO_ADMIN_USER_ID = "65239e9380cfeb07c8fb0145";
+
 /**
  * Input type for creating or updating HomeScreen
  */
@@ -129,6 +132,50 @@ export class HomeScreenResolver {
     const homeScreens = await em.find(
       HomeScreen,
       { owner: req.userId },
+      { orderBy: { updatedAt: "DESC" } },
+    );
+
+    return { results: homeScreens };
+  }
+
+  /**
+   * Retrieves all HomeScreens for a specific user by ID.
+   * Only accessible by sudo admin users.
+   */
+  @ValidateUser()
+  @Query(() => HomeScreensResponse)
+  async getHomeScreensByOwnerId(
+    @Arg("ownerId") ownerId: string,
+    @Ctx() { em, request }: MyContext,
+  ): Promise<HomeScreensResponse> {
+    const req = request as any;
+
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
+    // Check if user is sudo admin
+    if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
+      return {
+        errors: [
+          {
+            field: "Authorization",
+            message: "You do not have permission to view other users' home screens.",
+          },
+        ],
+      };
+    }
+
+    const homeScreens = await em.find(
+      HomeScreen,
+      { owner: new ObjectId(ownerId) },
       { orderBy: { updatedAt: "DESC" } },
     );
 

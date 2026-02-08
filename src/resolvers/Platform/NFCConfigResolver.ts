@@ -16,6 +16,9 @@ import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
 import { ValidateUser } from "../../middlewares/userAuth";
 
+// Admin user ID that has access to admin operations
+const SUDO_ADMIN_USER_ID = "65239e9380cfeb07c8fb0145";
+
 /**
  * Input type for creating or updating NFC configuration
  */
@@ -36,6 +39,32 @@ class NFCConfigInput {
   /** HomeScreen ID to assign to this device */
   @Field(() => String, { nullable: true })
   homeScreenId?: string;
+}
+
+/**
+ * Input type for admin creating NFC configuration for any user
+ */
+@InputType()
+class AdminNFCConfigInput {
+  /** Unique physical tag ID */
+  @Field(() => String)
+  nfcId!: string;
+
+  /** User-defined name for this device */
+  @Field(() => String)
+  name!: string;
+
+  /** Type of physical device */
+  @Field(() => String, { nullable: true })
+  deviceType?: string;
+
+  /** HomeScreen ID to assign to this device */
+  @Field(() => String, { nullable: true })
+  homeScreenId?: string;
+
+  /** Owner user ID - required for admin creation */
+  @Field(() => String)
+  ownerId!: string;
 }
 
 /**
@@ -69,8 +98,6 @@ class NFCConfigsResponse {
  */
 @Resolver()
 export class NFCConfigResolver {
-
-
   /**
    * Retrieves a single NFC configuration by ID.
    *
@@ -105,9 +132,13 @@ export class NFCConfigResolver {
   @Query(() => NFCConfigsResponse)
   async getNFCConfigsByOwner(
     @Arg("ownerId") ownerId: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em }: MyContext,
   ) {
-    const nfcConfigs = await em.find(NFCConfig, { owner: new ObjectId(ownerId) });
+    const nfcConfigs = await em.find(
+      NFCConfig,
+      { owner: new ObjectId(ownerId) },
+      { populate: ["homeScreen"] },
+    );
     return { results: nfcConfigs };
   }
 
@@ -121,7 +152,7 @@ export class NFCConfigResolver {
   @Query(() => NFCConfigResponse)
   async getNFCConfigByNfcId(
     @Arg("nfcId") nfcId: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em }: MyContext,
   ) {
     const nfcConfig = await em.findOne(NFCConfig, { nfcId });
     if (!nfcConfig) {
@@ -151,7 +182,7 @@ export class NFCConfigResolver {
   @Mutation(() => NFCConfigResponse)
   async createNFCConfig(
     @Arg("options", () => NFCConfigInput) options: NFCConfigInput,
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em, request }: MyContext,
   ): Promise<NFCConfigResponse> {
     const req = request as any;
 
@@ -180,7 +211,9 @@ export class NFCConfigResolver {
     }
 
     // Check if nfcId is already in use
-    const existingDevice = await em.findOne(NFCConfig, { nfcId: options.nfcId });
+    const existingDevice = await em.findOne(NFCConfig, {
+      nfcId: options.nfcId,
+    });
     if (existingDevice) {
       return {
         errors: [
@@ -249,7 +282,7 @@ export class NFCConfigResolver {
   async updateNFCConfig(
     @Arg("options", () => NFCConfigInput) options: NFCConfigInput,
     @Arg("id", () => String) id: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em }: MyContext,
   ): Promise<NFCConfigResponse> {
     // Check if the NFC config exists
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
@@ -351,7 +384,7 @@ export class NFCConfigResolver {
     @Arg("id", () => String) id: string,
     @Arg("homeScreenId", () => String, { nullable: true })
     homeScreenId: string | null,
-    @Ctx() { em }: MyContext
+    @Ctx() { em }: MyContext,
   ): Promise<NFCConfigResponse> {
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
     if (!nfcConfig) {
@@ -411,7 +444,7 @@ export class NFCConfigResolver {
   @Mutation(() => NFCConfigResponse)
   async incrementNFCConfigViews(
     @Arg("id", () => String) id: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em }: MyContext,
   ): Promise<NFCConfigResponse> {
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
 
@@ -442,5 +475,185 @@ export class NFCConfigResolver {
     }
 
     return { results: nfcConfig };
+  }
+
+  /**
+   * Admin: Creates a new NFC configuration for any user.
+   * Only accessible by sudo admin users.
+   *
+   * @param options - The NFC configuration data including owner ID
+   * @param em - Database entity manager from GraphQL context
+   * @param request - HTTP request object containing user authentication data
+   * @returns Promise<NFCConfigResponse> - The created NFC configuration or error details
+   */
+  @ValidateUser()
+  @Mutation(() => NFCConfigResponse)
+  async adminCreateNFCConfig(
+    @Arg("options", () => AdminNFCConfigInput) options: AdminNFCConfigInput,
+    @Ctx() { em, request }: MyContext,
+  ): Promise<NFCConfigResponse> {
+    const req = request as any;
+
+    // Check if user is authenticated
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
+    // Check if user is sudo admin
+    if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
+      return {
+        errors: [
+          {
+            field: "Authorization",
+            message:
+              "You do not have permission to create NFC configs for other users.",
+          },
+        ],
+      };
+    }
+
+    // Find the owner user
+    const owner = await em.findOne(User, {
+      _id: new ObjectId(options.ownerId),
+    });
+    if (!owner) {
+      return {
+        errors: [
+          {
+            field: "ownerId",
+            message: "Owner user not found.",
+          },
+        ],
+      };
+    }
+
+    // Check if nfcId is already in use
+    const existingDevice = await em.findOne(NFCConfig, {
+      nfcId: options.nfcId,
+    });
+    if (existingDevice) {
+      return {
+        errors: [
+          {
+            field: "nfcId",
+            message: "This NFC device ID is already registered",
+          },
+        ],
+      };
+    }
+
+    // Find HomeScreen if provided
+    let homeScreen = null;
+    if (options.homeScreenId) {
+      homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(options.homeScreenId),
+      });
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "homeScreenId",
+              message: "Home screen not found",
+            },
+          ],
+        };
+      }
+    }
+
+    const nfcConfig = em.create(NFCConfig, {
+      nfcId: options.nfcId,
+      name: options.name,
+      deviceType: options.deviceType,
+      owner: owner,
+      homeScreen: homeScreen || undefined,
+      views: 0,
+    });
+
+    try {
+      await em.persistAndFlush(nfcConfig);
+    } catch (err) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to create NFC config",
+          },
+        ],
+      };
+    }
+
+    return { results: nfcConfig };
+  }
+
+  /**
+   * Admin: Get all NFC configurations.
+   * Only accessible by sudo admin users.
+   *
+   * @param limit - Maximum number of results to return (default: 50)
+   * @param em - Database entity manager from GraphQL context
+   * @param request - HTTP request object containing user authentication data
+   * @returns Promise<NFCConfigsResponse> - All NFC configurations or error details
+   */
+  @ValidateUser()
+  @Query(() => NFCConfigsResponse)
+  async adminGetAllNFCConfigs(
+    @Arg("limit", () => Number, { nullable: true }) limit: number = 50,
+    @Ctx() { em, request }: MyContext,
+  ): Promise<NFCConfigsResponse> {
+    const req = request as any;
+
+    // Check if user is authenticated
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
+    // Check if user is sudo admin
+    if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
+      return {
+        errors: [
+          {
+            field: "Authorization",
+            message: "You do not have permission to view all NFC configs.",
+          },
+        ],
+      };
+    }
+
+    try {
+      const nfcConfigs = await em.find(
+        NFCConfig,
+        {},
+        {
+          limit,
+          populate: ["owner", "homeScreen"],
+          orderBy: { createdAt: "DESC" },
+        },
+      );
+      return { results: nfcConfigs };
+    } catch (error) {
+      console.error("Error fetching all NFC configs:", error);
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to fetch NFC configs.",
+          },
+        ],
+      };
+    }
   }
 }
