@@ -204,8 +204,21 @@ export class HomeScreenResolver {
   async updateHomeScreen(
     @Arg("id", () => String) id: string,
     @Arg("options", () => HomeScreenInput) options: HomeScreenInput,
-    @Ctx() { em }: MyContext,
+    @Ctx() { em, request }: MyContext,
   ): Promise<HomeScreenResponse> {
+    const req = request as any;
+
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
     const homeScreen = await em.findOne(HomeScreen, { _id: new ObjectId(id) });
     if (!homeScreen) {
       return {
@@ -213,6 +226,34 @@ export class HomeScreenResolver {
           {
             field: "HomeScreen",
             message: "Home screen not found",
+          },
+        ],
+      };
+    }
+
+    // Verify ownership
+    let ownerId: string;
+    if (homeScreen.owner && typeof homeScreen.owner === "object" && "_id" in homeScreen.owner) {
+      ownerId = homeScreen.owner._id.toString();
+    } else if (homeScreen.owner) {
+      ownerId = String(homeScreen.owner);
+    } else {
+      return {
+        errors: [
+          {
+            field: "HomeScreen",
+            message: "Home screen owner not found",
+          },
+        ],
+      };
+    }
+
+    if (ownerId !== req.userId.toString()) {
+      return {
+        errors: [
+          {
+            field: "HomeScreen",
+            message: "You do not have permission to update this home screen",
           },
         ],
       };
@@ -240,7 +281,23 @@ export class HomeScreenResolver {
    */
   @ValidateUser()
   @Mutation(() => HomeScreenResponse)
-  async deleteHomeScreen(@Arg("id") id: string, @Ctx() { em }: MyContext) {
+  async deleteHomeScreen(
+    @Arg("id") id: string,
+    @Ctx() { em, request }: MyContext,
+  ) {
+    const req = request as any;
+
+    if (!req.userId) {
+      return {
+        errors: [
+          {
+            field: "User",
+            message: "User cannot be found. Please login first.",
+          },
+        ],
+      };
+    }
+
     const homeScreen = await em.findOne(HomeScreen, { _id: new ObjectId(id) });
 
     if (!homeScreen) {
@@ -254,7 +311,46 @@ export class HomeScreenResolver {
       };
     }
 
-    await em.removeAndFlush(homeScreen);
+    // Verify ownership
+    let ownerId: string;
+    if (homeScreen.owner && typeof homeScreen.owner === "object" && "_id" in homeScreen.owner) {
+      ownerId = homeScreen.owner._id.toString();
+    } else if (homeScreen.owner) {
+      ownerId = String(homeScreen.owner);
+    } else {
+      return {
+        errors: [
+          {
+            field: "HomeScreen",
+            message: "Home screen owner not found",
+          },
+        ],
+      };
+    }
+
+    if (ownerId !== req.userId.toString()) {
+      return {
+        errors: [
+          {
+            field: "HomeScreen",
+            message: "You do not have permission to delete this home screen",
+          },
+        ],
+      };
+    }
+
+    try {
+      await em.removeAndFlush(homeScreen);
+    } catch (err) {
+      return {
+        errors: [
+          {
+            field: "HomeScreen",
+            message: "Failed to delete home screen",
+          },
+        ],
+      };
+    }
 
     return { results: homeScreen };
   }
