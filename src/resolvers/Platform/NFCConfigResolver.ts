@@ -8,7 +8,8 @@ import {
   Field,
   ObjectType,
 } from "type-graphql";
-import { NFCConfig, TileConfigInput } from "../../entities/NFCConfig";
+import { NFCConfig } from "../../entities/NFCConfig";
+import { HomeScreen } from "../../entities/HomeScreen";
 import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
@@ -20,17 +21,21 @@ import { ValidateUser } from "../../middlewares/userAuth";
  */
 @InputType()
 class NFCConfigInput {
-  /** iPhone-style home screen tiles configuration */
-  @Field(() => [TileConfigInput], { nullable: true })
-  tiles?: TileConfigInput[];
+  /** Unique physical tag ID */
+  @Field(() => String)
+  nfcId!: string;
 
-  /** Wallpaper/background for the home screen */
+  /** User-defined name for this device */
+  @Field(() => String)
+  name!: string;
+
+  /** Type of physical device */
   @Field(() => String, { nullable: true })
-  wallpaper?: string;
+  deviceType?: string;
 
-  /** Array of NFC IDs associated with this configuration */
-  @Field(() => [String], { nullable: true })
-  nfcIds?: string[];
+  /** HomeScreen ID to assign to this device */
+  @Field(() => String, { nullable: true })
+  homeScreenId?: string;
 }
 
 /**
@@ -40,6 +45,18 @@ class NFCConfigInput {
 class NFCConfigResponse {
   @Field(() => NFCConfig, { nullable: true })
   results?: NFCConfig;
+
+  @Field(() => [FieldError], { nullable: true })
+  errors?: FieldError[];
+}
+
+/**
+ * Response type for multiple NFC configurations
+ */
+@ObjectType()
+class NFCConfigsResponse {
+  @Field(() => [NFCConfig], { nullable: true })
+  results?: NFCConfig[];
 
   @Field(() => [FieldError], { nullable: true })
   errors?: FieldError[];
@@ -79,19 +96,34 @@ export class NFCConfigResolver {
   }
 
   /**
-   * Retrieves an NFC configuration by owner ID.
-   * Useful for getting a user's current NFC configuration.
+   * Retrieves all NFC configurations (devices) owned by a user.
    *
-   * @param ownerId - The ObjectId string of the user who owns the NFC configuration
+   * @param ownerId - The ObjectId string of the user who owns the NFC configurations
+   * @param em - Database entity manager from GraphQL context
+   * @returns Promise<NFCConfigsResponse> - The NFC configurations or error details
+   */
+  @Query(() => NFCConfigsResponse)
+  async getNFCConfigsByOwner(
+    @Arg("ownerId") ownerId: string,
+    @Ctx() { em }: MyContext
+  ) {
+    const nfcConfigs = await em.find(NFCConfig, { owner: new ObjectId(ownerId) });
+    return { results: nfcConfigs };
+  }
+
+  /**
+   * Retrieves an NFC configuration by its physical nfcId.
+   *
+   * @param nfcId - The unique physical tag ID
    * @param em - Database entity manager from GraphQL context
    * @returns Promise<NFCConfigResponse> - The NFC configuration or error details
    */
   @Query(() => NFCConfigResponse)
-  async getNFCConfigByOwner(
-    @Arg("ownerId") ownerId: string,
+  async getNFCConfigByNfcId(
+    @Arg("nfcId") nfcId: string,
     @Ctx() { em }: MyContext
   ) {
-    const nfcConfig = await em.findOne(NFCConfig, { owner: ownerId });
+    const nfcConfig = await em.findOne(NFCConfig, { nfcId });
     if (!nfcConfig) {
       return {
         errors: [
@@ -147,10 +179,44 @@ export class NFCConfigResolver {
       };
     }
 
+    // Check if nfcId is already in use
+    const existingDevice = await em.findOne(NFCConfig, { nfcId: options.nfcId });
+    if (existingDevice) {
+      return {
+        errors: [
+          {
+            field: "nfcId",
+            message: "This NFC device ID is already registered",
+          },
+        ],
+      };
+    }
+
+    // Find HomeScreen if provided
+    let homeScreen = null;
+    if (options.homeScreenId) {
+      homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(options.homeScreenId),
+      });
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "homeScreenId",
+              message: "Home screen not found",
+            },
+          ],
+        };
+      }
+    }
+
     const nfcConfig = em.create(NFCConfig, {
-      ...options,
+      nfcId: options.nfcId,
+      name: options.name,
+      deviceType: options.deviceType,
       owner: user,
-      nfcIds: options.nfcIds || [],
+      homeScreen: homeScreen || undefined,
+      views: 0,
     });
 
     try {
@@ -198,10 +264,30 @@ export class NFCConfigResolver {
       };
     }
 
+    // Find HomeScreen if provided
+    let homeScreen = null;
+    if (options.homeScreenId) {
+      homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(options.homeScreenId),
+      });
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "homeScreenId",
+              message: "Home screen not found",
+            },
+          ],
+        };
+      }
+    }
+
     // Update the NFC config
     try {
       em.assign(nfcConfig, {
-        ...options,
+        name: options.name,
+        deviceType: options.deviceType,
+        homeScreen: homeScreen || undefined,
       });
 
       // Save the NFC config
@@ -252,25 +338,83 @@ export class NFCConfigResolver {
   }
 
   /**
-   * Updates only the tiles layout for an NFC configuration.
-   * Optimized for the home screen editor.
+   * Assigns a HomeScreen to an NFC device.
    *
-   * @param id - The ObjectId string of the NFC configuration to update
-   * @param tiles - The new tiles configuration
-   * @param wallpaper - Optional wallpaper setting
+   * @param id - The ObjectId string of the NFC configuration
+   * @param homeScreenId - The HomeScreen ID to assign (null to unassign)
    * @param em - Database entity manager from GraphQL context
    * @returns Promise<NFCConfigResponse> - The updated NFC configuration or error details
    */
   @ValidateUser()
   @Mutation(() => NFCConfigResponse)
-  async updateNFCTiles(
+  async assignHomeScreenToNFCConfig(
     @Arg("id", () => String) id: string,
-    @Arg("tiles", () => [TileConfigInput]) tiles: TileConfigInput[],
-    @Arg("wallpaper", () => String, { nullable: true }) wallpaper: string | null,
+    @Arg("homeScreenId", () => String, { nullable: true })
+    homeScreenId: string | null,
     @Ctx() { em }: MyContext
   ): Promise<NFCConfigResponse> {
     const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
-    
+    if (!nfcConfig) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "NFC config not found",
+          },
+        ],
+      };
+    }
+
+    if (homeScreenId) {
+      const homeScreen = await em.findOne(HomeScreen, {
+        _id: new ObjectId(homeScreenId),
+      });
+      if (!homeScreen) {
+        return {
+          errors: [
+            {
+              field: "HomeScreen",
+              message: "Home screen not found",
+            },
+          ],
+        };
+      }
+      nfcConfig.homeScreen = homeScreen;
+    } else {
+      // Unassign the device
+      nfcConfig.homeScreen = undefined;
+    }
+
+    try {
+      await em.persistAndFlush(nfcConfig);
+    } catch (err) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "Failed to assign home screen to NFC device",
+          },
+        ],
+      };
+    }
+
+    return { results: nfcConfig };
+  }
+
+  /**
+   * Increments the view count for an NFC device (when the physical tag is scanned).
+   *
+   * @param id - The ObjectId string of the NFC configuration
+   * @param em - Database entity manager from GraphQL context
+   * @returns Promise<NFCConfigResponse> - The updated NFC configuration or error details
+   */
+  @Mutation(() => NFCConfigResponse)
+  async incrementNFCConfigViews(
+    @Arg("id", () => String) id: string,
+    @Ctx() { em }: MyContext
+  ): Promise<NFCConfigResponse> {
+    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+
     if (!nfcConfig) {
       return {
         errors: [
@@ -283,18 +427,15 @@ export class NFCConfigResolver {
     }
 
     try {
-      nfcConfig.tiles = tiles;
-      if (wallpaper !== null) {
-        nfcConfig.wallpaper = wallpaper;
-      }
-      
+      nfcConfig.views += 1;
+      nfcConfig.lastScannedAt = new Date();
       await em.persistAndFlush(nfcConfig);
     } catch (err) {
       return {
         errors: [
           {
             field: "NFCConfig",
-            message: "Failed to update tiles",
+            message: "Failed to increment views",
           },
         ],
       };

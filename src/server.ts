@@ -17,6 +17,7 @@ import { BookmarkResolver } from "./resolvers/BookmarkResolver";
 import { HistoryResolver } from "./resolvers/Bible/HistoryResolver";
 import { BibleInteractionResolver } from "./resolvers/BibleInteractionResolver";
 import { NFCConfigResolver } from "./resolvers/Platform/NFCConfigResolver";
+import { HomeScreenResolver } from "./resolvers/Platform/HomeScreenResolver";
 // Bible Brain Resolvers
 import { LanguagesResolver } from "./resolvers/Bible/BibleBrain/LanguagesResolver";
 import { BiblesResolver } from "./resolvers/Bible/BibleBrain/BiblesResolver";
@@ -55,6 +56,7 @@ const server = async () => {
       BibleBrainMediaResolver,
       BibleInteractionResolver,
       NFCConfigResolver,
+      HomeScreenResolver,
       MediaResolver,
       MoodResolver,
       NotificationResolver,

@@ -14,6 +14,7 @@ import { Bookmark } from "./entities/Bookmark";
 import { AIMessage } from "./entities/AIMemory";
 import { BibleHistory } from "./entities/Bible/BibleHistory";
 import { NFCConfig } from "./entities/NFCConfig";
+import { HomeScreen } from "./entities/HomeScreen";
 import { Media } from "./entities/Media";
 import { MoodCache } from "./entities/MoodCache";
 import {
@@ -41,6 +42,7 @@ const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
     AIMessage,
     BibleHistory,
     NFCConfig,
+    HomeScreen,
     Media,
     MoodCache,
     Notification,
