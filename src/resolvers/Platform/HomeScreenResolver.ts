@@ -167,7 +167,8 @@ export class HomeScreenResolver {
         errors: [
           {
             field: "Authorization",
-            message: "You do not have permission to view other users' home screens.",
+            message:
+              "You do not have permission to view other users' home screens.",
           },
         ],
       };
@@ -280,7 +281,11 @@ export class HomeScreenResolver {
 
     // Verify ownership
     let ownerId: string;
-    if (homeScreen.owner && typeof homeScreen.owner === "object" && "_id" in homeScreen.owner) {
+    if (
+      homeScreen.owner &&
+      typeof homeScreen.owner === "object" &&
+      "_id" in homeScreen.owner
+    ) {
       ownerId = homeScreen.owner._id.toString();
     } else if (homeScreen.owner) {
       ownerId = String(homeScreen.owner);
@@ -360,7 +365,11 @@ export class HomeScreenResolver {
 
     // Verify ownership
     let ownerId: string;
-    if (homeScreen.owner && typeof homeScreen.owner === "object" && "_id" in homeScreen.owner) {
+    if (
+      homeScreen.owner &&
+      typeof homeScreen.owner === "object" &&
+      "_id" in homeScreen.owner
+    ) {
       ownerId = homeScreen.owner._id.toString();
     } else if (homeScreen.owner) {
       ownerId = String(homeScreen.owner);

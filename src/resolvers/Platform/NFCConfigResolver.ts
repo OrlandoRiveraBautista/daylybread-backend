@@ -107,7 +107,11 @@ export class NFCConfigResolver {
    */
   @Query(() => NFCConfigResponse)
   async getNFCConfig(@Arg("id") id: string, @Ctx() { em }: MyContext) {
-    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
     if (!nfcConfig) {
       return {
         errors: [
@@ -154,7 +158,11 @@ export class NFCConfigResolver {
     @Arg("nfcId") nfcId: string,
     @Ctx() { em }: MyContext,
   ) {
-    const nfcConfig = await em.findOne(NFCConfig, { nfcId });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { nfcId },
+      { populate: ["owner", "homeScreen"] },
+    );
     if (!nfcConfig) {
       return {
         errors: [
@@ -285,7 +293,11 @@ export class NFCConfigResolver {
     @Ctx() { em }: MyContext,
   ): Promise<NFCConfigResponse> {
     // Check if the NFC config exists
-    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
     if (!nfcConfig) {
       return {
         errors: [
@@ -386,7 +398,11 @@ export class NFCConfigResolver {
     homeScreenId: string | null,
     @Ctx() { em }: MyContext,
   ): Promise<NFCConfigResponse> {
-    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
     if (!nfcConfig) {
       return {
         errors: [
@@ -446,7 +462,11 @@ export class NFCConfigResolver {
     @Arg("id", () => String) id: string,
     @Ctx() { em }: MyContext,
   ): Promise<NFCConfigResponse> {
-    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      { _id: new ObjectId(id) },
+      { populate: ["owner", "homeScreen"] },
+    );
 
     if (!nfcConfig) {
       return {
