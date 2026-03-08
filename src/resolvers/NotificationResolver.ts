@@ -9,6 +9,7 @@ import {
   InputType,
   Field,
   ObjectType,
+  FieldResolver,
 } from "type-graphql";
 import { PubSubEngine } from "graphql-subscriptions";
 import { MyContext } from "../types";
@@ -128,8 +129,17 @@ export class ScheduleNotificationResponse {
   notification?: Notification;
 }
 
-@Resolver()
+@Resolver(() => Notification)
 export class NotificationResolver {
+  // metadata is stored as a JSON object in MongoDB but typed as String in the
+  // GraphQL schema — this FieldResolver serializes it before GraphQL touches it
+  @FieldResolver(() => String, { nullable: true })
+  metadata(@Root() notification: Notification): string | null {
+    if (notification.metadata == null) return null;
+    if (typeof notification.metadata === "string") return notification.metadata;
+    return JSON.stringify(notification.metadata);
+  }
+
   // WebSocket subscription for real-time mood notifications
   @Subscription(() => MoodNotificationMessage, {
     topics: ({ args }) => `MOOD_REQUEST_AVAILABLE_${args.userId}`,
@@ -447,6 +457,68 @@ export class NotificationResolver {
       return false;
     } catch (error) {
       console.error("Error cancelling notification:", error);
+      return false;
+    }
+  }
+
+  // Get user's in-app notifications (all unread/pending IN_APP notifications)
+  @ValidateUser()
+  @Query(() => [Notification])
+  async getMyInAppNotifications(
+    @Ctx() context: MyContext
+  ): Promise<Notification[]> {
+    try {
+      const req = context.request as any;
+      if (!req.userId) {
+        return [];
+      }
+
+      return await context.em.find(
+        Notification,
+        {
+          userId: req.userId,
+          deliveryType: NotificationDeliveryType.IN_APP,
+          status: { $in: [NotificationStatus.PENDING, NotificationStatus.SENT] },
+        },
+        {
+          orderBy: { createdAt: -1 },
+          limit: 50,
+        }
+      );
+    } catch (error) {
+      console.error("Error getting in-app notifications:", error);
+      return [];
+    }
+  }
+
+  // Mark a notification as read
+  @ValidateUser()
+  @Mutation(() => Boolean)
+  async markNotificationRead(
+    @Arg("notificationId") notificationId: string,
+    @Ctx() context: MyContext
+  ): Promise<boolean> {
+    try {
+      const req = context.request as any;
+      if (!req.userId) {
+        return false;
+      }
+
+      const notification = await context.em.findOne(Notification, {
+        _id: new ObjectId(notificationId),
+        userId: req.userId,
+      });
+
+      if (!notification) {
+        return false;
+      }
+
+      notification.status = NotificationStatus.READ;
+      notification.readAt = new Date();
+      await context.em.persistAndFlush(notification);
+      return true;
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
       return false;
     }
   }

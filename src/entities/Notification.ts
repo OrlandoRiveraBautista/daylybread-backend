@@ -10,6 +10,7 @@ export enum NotificationContentType {
   PRAYER_REMINDER = "prayer_reminder",
   COMMUNITY_UPDATE = "community_update",
   ACHIEVEMENT = "achievement",
+  TEAM_INVITE = "team_invite",
 }
 
 export enum NotificationDeliveryType {
