@@ -49,14 +49,14 @@ export class TeamMember {
   @ManyToOne(() => WorshipTeam)
   team!: WorshipTeam;
 
-  @Field(() => User)
-  @ManyToOne(() => User)
-  user!: User;
+  @Field(() => User, { nullable: true })
+  @ManyToOne(() => User, { nullable: true })
+  user?: User;
 
-  @Field(() => TeamRole)
+  @Field(() => TeamRole, { nullable: true })
   @Enum(() => TeamRole)
-  @Property()
-  role: TeamRole = TeamRole.OTHER;
+  @Property({ nullable: true })
+  role?: TeamRole;
 
   @Field(() => [String], { nullable: true })
   @Property({ nullable: true })

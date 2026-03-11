@@ -585,7 +585,7 @@ export class WorshipServiceResolver {
     for (const assignment of assignments) {
       const member = assignment.member;
       if (!member) continue;
-      const user: User = member.user;
+      const user: User | undefined = member.user;
       if (!user || user._id.equals(req.userId)) continue;
 
       const message = `${publisherName} has published "${service.name}" on ${serviceDate}. You've been assigned as ${assignment.role.replace(/_/g, " ")}.`;
