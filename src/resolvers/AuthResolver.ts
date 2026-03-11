@@ -309,8 +309,9 @@ export class AuthResolver {
 
   @Query(() => Boolean)
   async signout(@Ctx() { reply }: MyContext): Promise<boolean> {
-    reply.clearCookie("access-token");
-    reply.clearCookie("refresh-token");
+    const cookieOptions = { sameSite: "none" as const, secure: true, path: "/" };
+    reply.clearCookie("access-token", cookieOptions);
+    reply.clearCookie("refresh-token", cookieOptions);
 
     return true;
   }

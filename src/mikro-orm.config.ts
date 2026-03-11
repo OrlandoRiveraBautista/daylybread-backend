@@ -22,6 +22,15 @@ import {
   UserNotificationSettings,
 } from "./entities/Notification";
 import { Sermon } from "./entities/Sermon";
+import { WorshipTeam } from "./entities/Worship/WorshipTeam";
+import { TeamMember } from "./entities/Worship/TeamMember";
+import { TeamInvite } from "./entities/Worship/TeamInvite";
+import { Song } from "./entities/Worship/Song";
+import { WorshipService } from "./entities/Worship/WorshipService";
+import { ServiceAssignment } from "./entities/Worship/ServiceAssignment";
+import { Setlist } from "./entities/Worship/Setlist";
+import { SetlistItem } from "./entities/Worship/SetlistItem";
+import { Rehearsal } from "./entities/Worship/Rehearsal";
 
 dotenv.config();
 
@@ -48,6 +57,15 @@ const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
     Notification,
     UserNotificationSettings,
     Sermon,
+    WorshipTeam,
+    TeamMember,
+    TeamInvite,
+    Song,
+    WorshipService,
+    ServiceAssignment,
+    Setlist,
+    SetlistItem,
+    Rehearsal,
   ],
   type: "mongo",
   dbName: "daylybread",
