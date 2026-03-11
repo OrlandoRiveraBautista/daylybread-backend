@@ -8,6 +8,7 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { Field, ID, ObjectType, InputType } from "type-graphql";
 import { User } from "../User";
 import { WorshipTeam } from "./WorshipTeam";
+import { WorshipService } from "./WorshipService";
 
 @Entity()
 @ObjectType()
@@ -32,6 +33,10 @@ export class Rehearsal {
   @ManyToOne(() => WorshipTeam)
   team!: WorshipTeam;
 
+  @Field(() => WorshipService, { nullable: true })
+  @ManyToOne(() => WorshipService, { nullable: true })
+  service?: WorshipService;
+
   @Field(() => String)
   @Property({ type: "date" })
   date!: Date;
@@ -49,6 +54,9 @@ export class Rehearsal {
 export class RehearsalInput {
   @Field(() => String)
   teamId!: string;
+
+  @Field(() => String)
+  serviceId!: string;
 
   @Field(() => String)
   date!: string;

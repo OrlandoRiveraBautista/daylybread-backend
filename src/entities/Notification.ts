@@ -11,6 +11,7 @@ export enum NotificationContentType {
   COMMUNITY_UPDATE = "community_update",
   ACHIEVEMENT = "achievement",
   TEAM_INVITE = "team_invite",
+  SERVICE_PUBLISHED = "service_published",
 }
 
 export enum NotificationDeliveryType {
@@ -153,7 +154,7 @@ export class Notification {
     userId: string,
     mood: string,
     deliveryType: NotificationDeliveryType,
-    scheduledFor?: Date
+    scheduledFor?: Date,
   ): Notification {
     const notification = new Notification();
     notification.userId = userId;
@@ -173,7 +174,7 @@ export class Notification {
   static createDailyVerseNotification(
     userId: string,
     deliveryType: NotificationDeliveryType,
-    verseReference?: string
+    verseReference?: string,
   ): Notification {
     const notification = new Notification();
     notification.userId = userId;
@@ -191,7 +192,7 @@ export class Notification {
     userId: string,
     eventTitle: string,
     eventDate: Date,
-    deliveryType: NotificationDeliveryType
+    deliveryType: NotificationDeliveryType,
   ): Notification {
     const notification = new Notification();
     notification.userId = userId;

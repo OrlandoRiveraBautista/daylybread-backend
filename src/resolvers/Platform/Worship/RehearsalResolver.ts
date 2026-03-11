@@ -9,6 +9,7 @@ import {
 } from "type-graphql";
 import { Rehearsal, RehearsalInput } from "../../../entities/Worship/Rehearsal";
 import { WorshipTeam } from "../../../entities/Worship/WorshipTeam";
+import { WorshipService } from "../../../entities/Worship/WorshipService";
 import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
@@ -39,6 +40,7 @@ export class RehearsalResolver {
   @Query(() => RehearsalsResponse)
   async getRehearsals(
     @Arg("teamId", { nullable: true }) teamId: string,
+    @Arg("serviceId", { nullable: true }) serviceId: string,
     @Ctx() { em, request }: MyContext
   ): Promise<RehearsalsResponse> {
     const req = request as any;
@@ -53,11 +55,14 @@ export class RehearsalResolver {
     if (teamId) {
       filter.team = new ObjectId(teamId);
     }
+    if (serviceId) {
+      filter.service = new ObjectId(serviceId);
+    }
 
     const rehearsals = await em.find(
       Rehearsal,
       filter,
-      { orderBy: { date: "DESC" }, populate: ["team", "author"] }
+      { orderBy: { date: "DESC" }, populate: ["team", "author", "service"] }
     );
 
     return { results: rehearsals };
@@ -80,7 +85,7 @@ export class RehearsalResolver {
     const rehearsal = await em.findOne(
       Rehearsal,
       { _id: new ObjectId(id) },
-      { populate: ["team", "author"] }
+      { populate: ["team", "author", "service"] }
     );
 
     if (!rehearsal) {
@@ -120,8 +125,16 @@ export class RehearsalResolver {
       };
     }
 
+    const service = await em.findOne(WorshipService, { _id: new ObjectId(options.serviceId) });
+    if (!service) {
+      return {
+        errors: [{ field: "WorshipService", message: "Service not found" }],
+      };
+    }
+
     const rehearsal = em.create(Rehearsal, {
       team,
+      service,
       author: user,
       date: new Date(options.date),
       notes: options.notes,
@@ -130,7 +143,7 @@ export class RehearsalResolver {
 
     try {
       await em.persistAndFlush(rehearsal);
-      await em.populate(rehearsal, ["team", "author"]);
+      await em.populate(rehearsal, ["team", "author", "service"]);
     } catch (err) {
       console.error("Error creating rehearsal:", err);
       return {
@@ -170,15 +183,23 @@ export class RehearsalResolver {
       };
     }
 
+    const service = await em.findOne(WorshipService, { _id: new ObjectId(options.serviceId) });
+    if (!service) {
+      return {
+        errors: [{ field: "WorshipService", message: "Service not found" }],
+      };
+    }
+
     try {
       em.assign(rehearsal, {
         team,
+        service,
         date: new Date(options.date),
         notes: options.notes,
         songIds: options.songIds,
       });
       await em.persistAndFlush(rehearsal);
-      await em.populate(rehearsal, ["team", "author"]);
+      await em.populate(rehearsal, ["team", "author", "service"]);
     } catch (err) {
       console.error("Error updating rehearsal:", err);
       return {

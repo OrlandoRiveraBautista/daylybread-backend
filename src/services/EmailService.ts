@@ -97,7 +97,7 @@ function divider(): string {
 export class EmailService {
   async sendNotificationEmail(
     userEmail: string,
-    notification: Notification
+    notification: Notification,
   ): Promise<void> {
     const htmlContent = this.getEmailTemplate(notification);
 
@@ -115,7 +115,9 @@ export class EmailService {
   }
 
   private getEmailTemplate(notification: Notification): { html: string } {
-    const baseUrl = (process.env.FRONTEND_URL || "https://daylybread.com").replace(/\/$/, "");
+    const baseUrl = (
+      process.env.FRONTEND_URL || "https://daylybread.com"
+    ).replace(/\/$/, "");
 
     switch (notification.contentType) {
       case NotificationContentType.TEAM_INVITE:
@@ -140,6 +142,68 @@ export class EmailService {
             </p>
           `),
         };
+
+      case NotificationContentType.SERVICE_PUBLISHED: {
+        const meta = notification.metadata || {};
+        const serviceName: string = meta.serviceName || "an upcoming service";
+        const serviceDate: string = meta.serviceDate || "";
+        const teamName: string = meta.teamName || "";
+        const actionLink = notification.actionUrl
+          ? notification.actionUrl.startsWith("http")
+            ? notification.actionUrl
+            : `${baseUrl}${notification.actionUrl}`
+          : `${baseUrl}/worship/services`;
+
+        return {
+          html: baseLayout(`
+            <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: ${brand.tertiary};">Worship Service</p>
+            <h1 style="margin: 0 0 16px; font-size: 26px; font-weight: 800; color: ${brand.text}; line-height: 1.2;">You've been scheduled! 🎵</h1>
+            <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: ${brand.textMuted};">
+              ${notification.message}
+            </p>
+
+            ${divider()}
+
+            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin-bottom: 24px;">
+              ${
+                serviceName
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; font-size: 14px; color: ${brand.textSubtle}; width: 120px;">Service</td>
+                <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: ${brand.text};">${serviceName}</td>
+              </tr>`
+                  : ""
+              }
+              ${
+                serviceDate
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; font-size: 14px; color: ${brand.textSubtle}; width: 120px;">Date &amp; Time</td>
+                <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: ${brand.text};">${serviceDate}</td>
+              </tr>`
+                  : ""
+              }
+              ${
+                teamName
+                  ? `
+              <tr>
+                <td style="padding: 8px 0; font-size: 14px; color: ${brand.textSubtle}; width: 120px;">Team</td>
+                <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: ${brand.text};">${teamName}</td>
+              </tr>`
+                  : ""
+              }
+            </table>
+
+            ${ctaButton(actionLink, notification.actionText || "View Service", brand.tertiary)}
+
+            ${divider()}
+
+            <p style="margin: 0; font-size: 13px; color: ${brand.textSubtle};">
+              Please confirm your availability by accepting or declining your assignment in the app.
+            </p>
+          `),
+        };
+      }
 
       case NotificationContentType.MOOD_REQUEST_AVAILABLE:
         return {
@@ -185,7 +249,7 @@ export class EmailService {
                       ? notification.actionUrl
                       : `${baseUrl}${notification.actionUrl}`,
                     notification.actionText || "View",
-                    brand.primary
+                    brand.primary,
                   )
                 : ""
             }
