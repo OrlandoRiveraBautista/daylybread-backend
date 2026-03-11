@@ -124,7 +124,7 @@ export class ServiceAssignmentResolver {
     }
 
     // Verify the current user is the assigned member
-    if (assignment.member.user._id.toString() !== req.userId.toString()) {
+    if (assignment.member.user?._id.toString() !== req.userId.toString()) {
       return {
         errors: [{ field: "ServiceAssignment", message: "You can only respond to your own assignments" }],
       };

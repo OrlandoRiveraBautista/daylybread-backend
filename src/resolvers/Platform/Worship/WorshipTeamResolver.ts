@@ -111,7 +111,7 @@ export class WorshipTeamResolver {
     // Verify user is the author or a member of this team
     const isAuthor = team.author._id.equals(req.userId);
     const isMember = team.members.getItems().some(
-      (m) => m.user._id.equals(req.userId)
+      (m) => m.user?._id.equals(req.userId)
     );
 
     if (!isAuthor && !isMember) {
