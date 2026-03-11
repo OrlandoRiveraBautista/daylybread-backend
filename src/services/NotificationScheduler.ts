@@ -19,6 +19,7 @@ export class NotificationScheduler {
   private pubSub: PubSubEngine;
   private checkInterval: NodeJS.Timeout | null = null;
   private isRunning: boolean = false;
+  private lastDailyVerseDate: string | null = null;
 
   constructor(em: EntityManager, pubSub: PubSubEngine) {
     this.em = em;
@@ -73,19 +74,47 @@ export class NotificationScheduler {
     try {
       const now = new Date();
 
+      // Check if we need to generate daily verse notifications (at 6 AM UTC)
+      await this.checkAndGenerateDailyVerses(now);
+
       // Find all pending notifications that are due
       const dueNotifications = await this.em.find(Notification, {
         status: NotificationStatus.PENDING,
         scheduledFor: { $lte: now },
       });
 
-      console.log(`Processing ${dueNotifications.length} due notifications`);
+      if (dueNotifications.length > 0) {
+        console.log(`Processing ${dueNotifications.length} due notifications`);
+      }
 
       for (const notification of dueNotifications) {
         await this.sendNotification(notification);
       }
     } catch (error) {
       console.error("Error processing notifications:", error);
+    }
+  }
+
+  // Check if daily verses need to be generated and generate them
+  private async checkAndGenerateDailyVerses(now: Date): Promise<void> {
+    try {
+      const currentHour = now.getUTCHours();
+      const currentDate = now.toISOString().split("T")[0]; // YYYY-MM-DD
+
+      // Only generate at 6 AM UTC and only once per day
+      if (currentHour === 6 && this.lastDailyVerseDate !== currentDate) {
+        console.log("⏰ Time to generate daily verse notifications...");
+
+        const { DailyVerseService } = await import("./DailyVerseService");
+        const dailyVerseService = new DailyVerseService(this.em);
+
+        await dailyVerseService.scheduleDailyVersePushNotifications();
+
+        this.lastDailyVerseDate = currentDate;
+        console.log("✅ Daily verse notifications scheduled successfully");
+      }
+    } catch (error) {
+      console.error("❌ Error generating daily verses:", error);
     }
   }
 

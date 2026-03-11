@@ -30,6 +30,15 @@ import { MoodResolver } from "./resolvers/MoodResolver";
 import { NotificationResolver } from "./resolvers/NotificationResolver";
 import { SermonResolver } from "./resolvers/Platform/SermonResolver";
 import { SermonAIResolver } from "./resolvers/Platform/SermonAIResolver";
+// Worship Team Manager Resolvers
+import { WorshipTeamResolver } from "./resolvers/Platform/Worship/WorshipTeamResolver";
+import { TeamMemberResolver } from "./resolvers/Platform/Worship/TeamMemberResolver";
+import { TeamInviteResolver } from "./resolvers/Platform/Worship/TeamInviteResolver";
+import { SongResolver } from "./resolvers/Platform/Worship/SongResolver";
+import { WorshipServiceResolver } from "./resolvers/Platform/Worship/WorshipServiceResolver";
+import { ServiceAssignmentResolver } from "./resolvers/Platform/Worship/ServiceAssignmentResolver";
+import { SetlistResolver } from "./resolvers/Platform/Worship/SetlistResolver";
+import { RehearsalResolver } from "./resolvers/Platform/Worship/RehearsalResolver";
 
 dotenv.config();
 
@@ -62,6 +71,15 @@ const server = async () => {
       NotificationResolver,
       SermonResolver,
       SermonAIResolver,
+      // Worship Team Manager
+      WorshipTeamResolver,
+      TeamMemberResolver,
+      TeamInviteResolver,
+      SongResolver,
+      WorshipServiceResolver,
+      ServiceAssignmentResolver,
+      SetlistResolver,
+      RehearsalResolver,
     ],
   });
 
