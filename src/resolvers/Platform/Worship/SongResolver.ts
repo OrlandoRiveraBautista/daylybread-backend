@@ -233,22 +233,13 @@ export class SongResolver {
     }
   }
 
-  @ValidateUser()
   @Query(() => SongsResponse)
   async getSongs(
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em }: MyContext
   ): Promise<SongsResponse> {
-    const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
     const songs = await em.find(
       Song,
-      { author: req.userId },
+      {},
       { orderBy: { title: "ASC" } }
     );
 
@@ -259,20 +250,11 @@ export class SongResolver {
     return { results: songs };
   }
 
-  @ValidateUser()
   @Query(() => SongResponse)
   async getSong(
     @Arg("id") id: string,
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em }: MyContext
   ): Promise<SongResponse> {
-    const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
     const song = await em.findOne(Song, { _id: new ObjectId(id) });
 
     if (!song) {
@@ -286,25 +268,15 @@ export class SongResolver {
     return { results: song };
   }
 
-  @ValidateUser()
   @Query(() => SongsResponse)
   async searchSongs(
     @Arg("searchTerm") searchTerm: string,
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em }: MyContext
   ): Promise<SongsResponse> {
-    const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
     const regex = new RegExp(searchTerm, "i");
     const songs = await em.find(
       Song,
       {
-        author: req.userId,
         $or: [
           { title: regex },
           { artist: regex },
@@ -378,6 +350,14 @@ export class SongResolver {
       };
     }
 
+    await em.populate(song, ["author"]);
+
+    if (song.author._id.toString() !== req.userId.toString()) {
+      return {
+        errors: [{ field: "Song", message: "You can only edit songs you created." }],
+      };
+    }
+
     try {
       em.assign(song, options);
       await em.persistAndFlush(song);
@@ -411,6 +391,14 @@ export class SongResolver {
     if (!song) {
       return {
         errors: [{ field: "Song", message: "Song not found" }],
+      };
+    }
+
+    await em.populate(song, ["author"]);
+
+    if (song.author._id.toString() !== req.userId.toString()) {
+      return {
+        errors: [{ field: "Song", message: "You can only delete songs you created." }],
       };
     }
 
