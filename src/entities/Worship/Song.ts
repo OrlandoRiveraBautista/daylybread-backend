@@ -58,6 +58,10 @@ export class Song {
   @Field(() => String, { nullable: true })
   @Property({ nullable: true })
   notes?: string;
+
+  @Field(() => String, { nullable: true })
+  @Property({ nullable: true })
+  chordsUrl?: string;
 }
 
 @InputType()
@@ -85,4 +89,7 @@ export class SongInput {
 
   @Field(() => String, { nullable: true })
   notes?: string;
+
+  @Field(() => String, { nullable: true })
+  chordsUrl?: string;
 }
