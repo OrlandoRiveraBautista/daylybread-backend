@@ -24,6 +24,7 @@ import { ConversationChain } from "langchain/chains";
 import { BufferWindowMemory } from "langchain/memory";
 import { __prod__ } from "./constants";
 import { NotificationScheduler } from "./services/NotificationScheduler";
+import { registerYoutubeAudioProxyRoutes } from "./routes/youtubeAudioProxy";
 
 /** App class */
 class App {
@@ -140,6 +141,9 @@ class App {
 
     // start ApolloServer
     await this.apolloServer.start();
+
+    /** REST: YouTube audio proxy for worship practice mode (requires yt-dlp on server) */
+    registerYoutubeAudioProxyRoutes(this.app);
 
     // Start notification scheduler
     const notificationScheduler = new NotificationScheduler(

@@ -12,6 +12,8 @@
 # production
 /build
 /dist
+# yt-dlp / ffmpeg downloaded by scripts/ensure-practice-media-deps.cjs (local & Render build)
+/bin
 
 # misc
 .DS_Store

@@ -352,11 +352,7 @@ export class SongResolver {
 
     await em.populate(song, ["author"]);
 
-    if (song.author._id.toString() !== req.userId.toString()) {
-      return {
-        errors: [{ field: "Song", message: "You can only edit songs you created." }],
-      };
-    }
+    // Any authenticated user may update songs (shared library / collaboration).
 
     try {
       em.assign(song, options);
