@@ -107,6 +107,31 @@ export function getYtDlpCookieCliArgs(): string[] {
   return ["--cookies", cookiePath];
 }
 
+/** True when `--cookies` will be passed to yt-dlp (file or inline env resolved successfully). */
+export function isYtDlpCookiesConfigured(): boolean {
+  return getYtDlpCookieCliArgs().length > 0;
+}
+
+/**
+ * Call once at server startup: logs if `YT_DLP_COOKIES_FILE` is set but the path is missing
+ * (common when the filename does not match Render’s `/etc/secrets/<name>`).
+ */
+export function warnIfYtDlpCookieFileEnvMissing(log: {
+  warn: (obj: Record<string, unknown>, msg: string) => void;
+}): void {
+  const raw = process.env.YT_DLP_COOKIES_FILE?.trim();
+  if (!raw) {
+    return;
+  }
+  const p = resolveCookieFilePath(raw);
+  if (!p) {
+    log.warn(
+      { YT_DLP_COOKIES_FILE: raw },
+      "YT_DLP_COOKIES_FILE path does not exist at runtime; yt-dlp will run without cookies",
+    );
+  }
+}
+
 let ffmpegVerifiedAvailable = false;
 let lastFfmpegNegativeProbeAt = 0;
 /** Avoid spawnSync on every ?start= request while ffmpeg is missing. */

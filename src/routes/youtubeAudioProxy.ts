@@ -10,6 +10,8 @@ import {
   resolveFfmpegExecutable,
   resolveYtDlpExecutable,
   getYtDlpCookieCliArgs,
+  isYtDlpCookiesConfigured,
+  warnIfYtDlpCookieFileEnvMissing,
 } from "../utils/youtubeAudio";
 
 /** CORS origins aligned with Apollo in app.ts */
@@ -204,14 +206,21 @@ function runYoutubeProbe(
         return;
       }
       const errText = (stderr || stdout).trim().slice(-1200);
-      const needsCookies =
-        /sign in|not a bot/i.test(errText) && getYtDlpCookieCliArgs().length === 0;
+      const botChallenge = /sign in|not a bot/i.test(errText);
+      const cookiesOn = isYtDlpCookiesConfigured();
+      let hint =
+        "Update: yt-dlp -U  ·  Install ffmpeg if needed: brew install ffmpeg";
+      if (botChallenge && !cookiesOn) {
+        hint =
+          "YouTube is challenging this server IP. Set YT_DLP_COOKIES or YT_DLP_COOKIES_FILE (exact /etc/secrets/<filename> on Render). See yt-dlp wiki: exporting YouTube cookies.";
+      } else if (botChallenge && cookiesOn) {
+        hint =
+          "Cookies are passed but YouTube still blocked the request. Re-export fresh Netscape cookies (logged-in session), ensure the file is not empty, update yt-dlp on deploy, and see yt-dlp PO Token guide if issues persist.";
+      }
       done({
         ok: false,
         message: errText || `yt-dlp exited with code ${code}`,
-        hint: needsCookies
-          ? "YouTube is challenging this server IP. Set YT_DLP_COOKIES to the full Netscape cookie text, or YT_DLP_COOKIES_FILE to a path (see yt-dlp wiki: exporting YouTube cookies). Also run yt-dlp -U on deploy."
-          : "Update: yt-dlp -U  ·  Install ffmpeg if needed: brew install ffmpeg",
+        hint,
       });
     });
   });
@@ -222,6 +231,8 @@ function runYoutubeProbe(
  * Probe: GET /api/youtube-audio-probe/:videoId — JSON { ok, message?, hint? }
  */
 export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
+  warnIfYtDlpCookieFileEnvMissing(app.log);
+
   app.options("/api/youtube-audio/:videoId", (request, reply) => {
     setCorsHeaders(request.headers.origin, reply);
     reply.header("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -253,13 +264,15 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
       const ytdlp = resolveYtDlpExecutable();
       const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
       const result = await runYoutubeProbe(ytdlp, watchUrl);
+      const cookiesConfiguredForYtDlp = isYtDlpCookiesConfigured();
       if (!result.ok) {
-        reply.code(503).send(result);
+        reply.code(503).send({ ...result, cookiesConfiguredForYtDlp });
         return;
       }
       reply.send({
         ok: true,
         seekFromTimestampSupported: isFfmpegAvailable(),
+        cookiesConfiguredForYtDlp,
       });
     },
   );
@@ -362,10 +375,24 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
       if (!reply.raw.headersSent) {
         setCorsHeaders(request.headers.origin, reply);
         const stderrTail = stderrAccumulator.text.trim().slice(-1500);
+        const cookiesOn = isYtDlpCookiesConfigured();
+        const botChallenge = /sign in|not a bot/i.test(
+          stderrTail + (err instanceof Error ? err.message : ""),
+        );
+        let streamHint: string | undefined;
+        if (botChallenge && !cookiesOn) {
+          streamHint =
+            "No cookies were loaded. Set YT_DLP_COOKIES_FILE to the exact Render secret path (e.g. /etc/secrets/www.youtube.com_cookies) or paste Netscape cookies into YT_DLP_COOKIES.";
+        } else if (botChallenge && cookiesOn) {
+          streamHint =
+            "Cookies are set but YouTube still blocked the request. Re-export fresh Netscape cookies, confirm the secret file is not empty, and redeploy with the latest yt-dlp.";
+        }
         void reply.status(503).send({
           error: "youtube_audio_stream_failed",
           message:
             err instanceof Error ? err.message : "Could not start audio stream",
+          cookiesConfiguredForYtDlp: cookiesOn,
+          ...(streamHint ? { hint: streamHint } : {}),
           ...(stderrTail ? { ytDlpStderr: stderrTail } : {}),
         });
       }
