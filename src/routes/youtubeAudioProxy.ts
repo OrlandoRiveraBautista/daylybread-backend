@@ -14,6 +14,7 @@ import {
   warnIfYtDlpCookieFileEnvMissing,
   getYtDlpYoutubeExtractorArgs,
   getYtDlpYoutubeAudioFormatSelector,
+  getYtDlpBrowserHeadersArgs,
 } from "../utils/youtubeAudio";
 
 /** CORS origins aligned with Apollo in app.ts */
@@ -152,11 +153,13 @@ function runYoutubeProbe(
     let proc: ChildProcess;
     const cookieArgs = getYtDlpCookieCliArgs();
     const extractorArgs = getYtDlpYoutubeExtractorArgs();
+    const headerArgs = getYtDlpBrowserHeadersArgs();
     try {
       proc = spawn(
         ytdlp,
         [
           ...cookieArgs,
+          ...headerArgs,
           ...extractorArgs,
           "--no-warnings",
           "--get-id",
@@ -217,10 +220,14 @@ function runYoutubeProbe(
       }
       const errText = (stderr || stdout).trim().slice(-1200);
       const botChallenge = /sign in|not a bot/i.test(errText);
+      const drmReported = /DRM protected|drm protected/i.test(errText);
       const cookiesOn = isYtDlpCookiesConfigured();
       let hint =
         "Update: yt-dlp -U  ·  Install ffmpeg if needed: brew install ffmpeg";
-      if (botChallenge && !cookiesOn) {
+      if (drmReported) {
+        hint =
+          "YouTube reported DRM for this client. Default uses web_safari+mweb (not tv). Override with YT_DLP_YOUTUBE_EXTRACTOR_ARGS=player_client=web_safari or mweb. If you still use `tv`, remove it — it often falsely flags music videos.";
+      } else if (botChallenge && !cookiesOn) {
         hint =
           "YouTube is challenging this server IP. Set YT_DLP_COOKIES or YT_DLP_COOKIES_FILE (exact /etc/secrets/<filename> on Render). See yt-dlp wiki: exporting YouTube cookies.";
       } else if (botChallenge && cookiesOn) {
@@ -315,14 +322,14 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
     }
 
     /**
-     * Format + client: `web` often only exposes SABR (see yt-dlp PO Token wiki) and breaks `bestaudio`.
-     * Default client is `tv` via {@link getYtDlpYoutubeExtractorArgs}; format chain includes common itags.
+     * Format + client: defaults avoid `tv` (DRM false-positives); see {@link getYtDlpYoutubeExtractorArgs}.
      * Override with `YT_DLP_YOUTUBE_FORMAT` / `YT_DLP_YOUTUBE_EXTRACTOR_ARGS`.
      * We sniff the first bytes so Content-Type matches the stream.
      * `?start=N` (seconds): stream from N — uses `--download-sections` (**ffmpeg required**).
      */
     const ytdlpArgs = [
       ...getYtDlpCookieCliArgs(),
+      ...getYtDlpBrowserHeadersArgs(),
       ...getYtDlpYoutubeExtractorArgs(),
       "-f",
       getYtDlpYoutubeAudioFormatSelector(),
@@ -388,11 +395,15 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
         setCorsHeaders(request.headers.origin, reply);
         const stderrTail = stderrAccumulator.text.trim().slice(-1500);
         const cookiesOn = isYtDlpCookiesConfigured();
-        const botChallenge = /sign in|not a bot/i.test(
-          stderrTail + (err instanceof Error ? err.message : ""),
-        );
+        const combinedErr =
+          stderrTail + (err instanceof Error ? err.message : "");
+        const botChallenge = /sign in|not a bot/i.test(combinedErr);
+        const drmReported = /DRM protected|drm protected/i.test(combinedErr);
         let streamHint: string | undefined;
-        if (botChallenge && !cookiesOn) {
+        if (drmReported) {
+          streamHint =
+            "The `tv` Innertube client often returns “DRM protected” for ordinary uploads. Defaults now use web_safari+mweb. Set YT_DLP_YOUTUBE_EXTRACTOR_ARGS if you still override with player_client=tv.";
+        } else if (botChallenge && !cookiesOn) {
           streamHint =
             "No cookies were loaded. Set YT_DLP_COOKIES_FILE to the exact Render secret path (e.g. /etc/secrets/www.youtube.com_cookies) or paste Netscape cookies into YT_DLP_COOKIES.";
         } else if (botChallenge && cookiesOn) {

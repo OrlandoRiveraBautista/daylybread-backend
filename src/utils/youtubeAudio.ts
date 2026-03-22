@@ -42,6 +42,15 @@ function resolveCookieFilePath(raw: string): string | null {
   return null;
 }
 
+/**
+ * Cookies are applied whenever `YT_DLP_COOKIES` / `YT_DLP_COOKIES_FILE` resolve (no Render-only gate).
+ * Use `YT_DLP_SKIP_COOKIES=1` to ignore cookie env (e.g. bad/stale export while debugging). Omit cookie vars locally if you do not want them.
+ */
+export function shouldLoadYtDlpCookiesFromEnv(): boolean {
+  const skip = process.env.YT_DLP_SKIP_COOKIES?.trim().toLowerCase();
+  return !(skip === "1" || skip === "true" || skip === "yes");
+}
+
 function getWritableCookiePathFromSourceFile(sourcePath: string): string | null {
   if (ytDlpCookiesWritableCopyPath) {
     return ytDlpCookiesWritableCopyPath;
@@ -68,8 +77,14 @@ function getWritableCookiePathFromSourceFile(sourcePath: string): string | null 
  *
  * Required on many hosts (e.g. cloud IPs) when YouTube returns "Sign in to confirm you're not a bot".
  * See yt-dlp wiki: exporting YouTube cookies. Do not commit cookie material.
+ *
+ * **Skip:** set `YT_DLP_SKIP_COOKIES=1` to force no `--cookies` (even if env vars are set).
  */
 export function getYtDlpCookieCliArgs(): string[] {
+  if (!shouldLoadYtDlpCookiesFromEnv()) {
+    return [];
+  }
+
   const fileEnv = process.env.YT_DLP_COOKIES_FILE?.trim();
   if (fileEnv) {
     const p = resolveCookieFilePath(fileEnv);
@@ -119,6 +134,9 @@ export function isYtDlpCookiesConfigured(): boolean {
 export function warnIfYtDlpCookieFileEnvMissing(log: {
   warn: (obj: Record<string, unknown>, msg: string) => void;
 }): void {
+  if (!shouldLoadYtDlpCookiesFromEnv()) {
+    return;
+  }
   const raw = process.env.YT_DLP_COOKIES_FILE?.trim();
   if (!raw) {
     return;
@@ -132,12 +150,19 @@ export function warnIfYtDlpCookieFileEnvMissing(log: {
   }
 }
 
+/** Browser-like User-Agent for Innertube (reduces some bot blocks). Override with `YT_DLP_USER_AGENT`. */
+export function getYtDlpBrowserHeadersArgs(): string[] {
+  const ua =
+    process.env.YT_DLP_USER_AGENT?.trim() ||
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  return ["--add-headers", `User-Agent:${ua}`];
+}
+
 /**
- * `--extractor-args` for YouTube. Default `player_client=tv` because `web` often exposes only SABR
- * formats (see yt-dlp PO Token wiki), which makes `bestaudio` / `-f` fail with "Requested format is not available".
- *
- * Override with `YT_DLP_YOUTUBE_EXTRACTOR_ARGS` — pass the part after `youtube:`, e.g.
- * `player_client=web_safari` or `player_client=tv,web_safari`.
+ * `--extractor-args` for YouTube.
+ * Default avoids leading with `tv` — the TV client often reports "DRM protected" for normal music videos (Innertube quirk).
+ * `web_safari` (HLS) + `mweb` merge format lists (see yt-dlp wiki / PO Token guide).
+ * Override with `YT_DLP_YOUTUBE_EXTRACTOR_ARGS`, e.g. `player_client=tv` if you need that client.
  */
 export function getYtDlpYoutubeExtractorArgs(): string[] {
   const raw = process.env.YT_DLP_YOUTUBE_EXTRACTOR_ARGS?.trim();
@@ -145,7 +170,7 @@ export function getYtDlpYoutubeExtractorArgs(): string[] {
     ? raw.startsWith("youtube:")
       ? raw
       : `youtube:${raw}`
-    : "youtube:player_client=tv";
+    : "youtube:player_client=web_safari,mweb";
   return ["--extractor-args", value];
 }
 
