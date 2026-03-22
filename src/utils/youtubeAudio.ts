@@ -132,6 +132,35 @@ export function warnIfYtDlpCookieFileEnvMissing(log: {
   }
 }
 
+/**
+ * `--extractor-args` for YouTube. Default `player_client=tv` because `web` often exposes only SABR
+ * formats (see yt-dlp PO Token wiki), which makes `bestaudio` / `-f` fail with "Requested format is not available".
+ *
+ * Override with `YT_DLP_YOUTUBE_EXTRACTOR_ARGS` — pass the part after `youtube:`, e.g.
+ * `player_client=web_safari` or `player_client=tv,web_safari`.
+ */
+export function getYtDlpYoutubeExtractorArgs(): string[] {
+  const raw = process.env.YT_DLP_YOUTUBE_EXTRACTOR_ARGS?.trim();
+  const value = raw
+    ? raw.startsWith("youtube:")
+      ? raw
+      : `youtube:${raw}`
+    : "youtube:player_client=tv";
+  return ["--extractor-args", value];
+}
+
+/**
+ * `-f` format selector for streaming audio. Override with `YT_DLP_YOUTUBE_FORMAT` if needed.
+ * Leading numeric itags (251/250/249 opus, 140/139 m4a) match common YouTube audio streams.
+ */
+export function getYtDlpYoutubeAudioFormatSelector(): string {
+  const raw = process.env.YT_DLP_YOUTUBE_FORMAT?.trim();
+  if (raw) {
+    return raw;
+  }
+  return "251/250/249/140/139/bestaudio/ba/worstaudio/worst";
+}
+
 let ffmpegVerifiedAvailable = false;
 let lastFfmpegNegativeProbeAt = 0;
 /** Avoid spawnSync on every ?start= request while ffmpeg is missing. */

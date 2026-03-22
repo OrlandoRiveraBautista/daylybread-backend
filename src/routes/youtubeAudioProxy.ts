@@ -12,6 +12,8 @@ import {
   getYtDlpCookieCliArgs,
   isYtDlpCookiesConfigured,
   warnIfYtDlpCookieFileEnvMissing,
+  getYtDlpYoutubeExtractorArgs,
+  getYtDlpYoutubeAudioFormatSelector,
 } from "../utils/youtubeAudio";
 
 /** CORS origins aligned with Apollo in app.ts */
@@ -149,10 +151,18 @@ function runYoutubeProbe(
 
     let proc: ChildProcess;
     const cookieArgs = getYtDlpCookieCliArgs();
+    const extractorArgs = getYtDlpYoutubeExtractorArgs();
     try {
       proc = spawn(
         ytdlp,
-        [...cookieArgs, "--no-warnings", "--get-id", "--no-playlist", watchUrl],
+        [
+          ...cookieArgs,
+          ...extractorArgs,
+          "--no-warnings",
+          "--get-id",
+          "--no-playlist",
+          watchUrl,
+        ],
         { stdio: ["ignore", "pipe", "pipe"] },
       );
     } catch (err) {
@@ -305,23 +315,21 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
     }
 
     /**
-     * Audio-only formats: avoid leading with itag 140 — not all clients/videos expose it
-     * ("Requested format is not available"). Prefer `ba` / `bestaudio`, then broader fallbacks.
+     * Format + client: `web` often only exposes SABR (see yt-dlp PO Token wiki) and breaks `bestaudio`.
+     * Default client is `tv` via {@link getYtDlpYoutubeExtractorArgs}; format chain includes common itags.
+     * Override with `YT_DLP_YOUTUBE_FORMAT` / `YT_DLP_YOUTUBE_EXTRACTOR_ARGS`.
      * We sniff the first bytes so Content-Type matches the stream.
      * `?start=N` (seconds): stream from N — uses `--download-sections` (**ffmpeg required**).
-     * Without ffmpeg, omit ?start and seek will reload from 0 only.
      */
     const ytdlpArgs = [
       ...getYtDlpCookieCliArgs(),
+      ...getYtDlpYoutubeExtractorArgs(),
       "-f",
-      "ba/bestaudio/ba[ext=m4a]/ba[ext=webm]/worstaudio/worst",
+      getYtDlpYoutubeAudioFormatSelector(),
       "-o",
       "-",
       "--no-playlist",
       "--no-warnings",
-      /* "tv downgraded" client often omits many itags; web client exposes more audio formats. */
-      "--extractor-args",
-      "youtube:player_client=web",
     ];
     if (startSec > 0.05) {
       ytdlpArgs.push(
