@@ -305,19 +305,23 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
     }
 
     /**
-     * Prefer m4a (itag 140); fall back to other audio. We sniff the first bytes
-     * so Content-Type matches (WebM + audio/mp4 breaks many browsers).
+     * Audio-only formats: avoid leading with itag 140 — not all clients/videos expose it
+     * ("Requested format is not available"). Prefer `ba` / `bestaudio`, then broader fallbacks.
+     * We sniff the first bytes so Content-Type matches the stream.
      * `?start=N` (seconds): stream from N — uses `--download-sections` (**ffmpeg required**).
      * Without ffmpeg, omit ?start and seek will reload from 0 only.
      */
     const ytdlpArgs = [
       ...getYtDlpCookieCliArgs(),
       "-f",
-      "140/ba[ext=m4a]/ba/bestaudio/best",
+      "ba/bestaudio/ba[ext=m4a]/ba[ext=webm]/worstaudio/worst",
       "-o",
       "-",
       "--no-playlist",
       "--no-warnings",
+      /* "tv downgraded" client often omits many itags; web client exposes more audio formats. */
+      "--extractor-args",
+      "youtube:player_client=web",
     ];
     if (startSec > 0.05) {
       ytdlpArgs.push(
