@@ -150,40 +150,38 @@ export function warnIfYtDlpCookieFileEnvMissing(log: {
   }
 }
 
-/** Browser-like User-Agent for Innertube (reduces some bot blocks). Override with `YT_DLP_USER_AGENT`. */
+/** Optional `--add-headers` when `YT_DLP_USER_AGENT` is set (advanced; default is plain yt-dlp). */
 export function getYtDlpBrowserHeadersArgs(): string[] {
-  const ua =
-    process.env.YT_DLP_USER_AGENT?.trim() ||
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+  const ua = process.env.YT_DLP_USER_AGENT?.trim();
+  if (!ua) {
+    return [];
+  }
   return ["--add-headers", `User-Agent:${ua}`];
 }
 
 /**
- * `--extractor-args` for YouTube.
- * Default avoids leading with `tv` — the TV client often reports "DRM protected" for normal music videos (Innertube quirk).
- * `web_safari` (HLS) + `mweb` merge format lists (see yt-dlp wiki / PO Token guide).
- * Override with `YT_DLP_YOUTUBE_EXTRACTOR_ARGS`, e.g. `player_client=tv` if you need that client.
+ * Optional `--extractor-args youtube:…` when `YT_DLP_YOUTUBE_EXTRACTOR_ARGS` is set.
+ * Default is **none** — yt-dlp uses its own YouTube client selection (same as CLI).
  */
 export function getYtDlpYoutubeExtractorArgs(): string[] {
   const raw = process.env.YT_DLP_YOUTUBE_EXTRACTOR_ARGS?.trim();
-  const value = raw
-    ? raw.startsWith("youtube:")
-      ? raw
-      : `youtube:${raw}`
-    : "youtube:player_client=web_safari,mweb";
+  if (!raw) {
+    return [];
+  }
+  const value = raw.startsWith("youtube:") ? raw : `youtube:${raw}`;
   return ["--extractor-args", value];
 }
 
 /**
- * `-f` format selector for streaming audio. Override with `YT_DLP_YOUTUBE_FORMAT` if needed.
- * Leading numeric itags (251/250/249 opus, 140/139 m4a) match common YouTube audio streams.
+ * `-f` for audio streaming. Override with `YT_DLP_YOUTUBE_FORMAT`.
+ * Default matches the original Daylybread proxy (m4a-first, then best audio).
  */
 export function getYtDlpYoutubeAudioFormatSelector(): string {
   const raw = process.env.YT_DLP_YOUTUBE_FORMAT?.trim();
   if (raw) {
     return raw;
   }
-  return "251/250/249/140/139/bestaudio/ba/worstaudio/worst";
+  return "140/ba[ext=m4a]/ba/bestaudio/best";
 }
 
 let ffmpegVerifiedAvailable = false;

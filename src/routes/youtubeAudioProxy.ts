@@ -152,15 +152,11 @@ function runYoutubeProbe(
 
     let proc: ChildProcess;
     const cookieArgs = getYtDlpCookieCliArgs();
-    const extractorArgs = getYtDlpYoutubeExtractorArgs();
-    const headerArgs = getYtDlpBrowserHeadersArgs();
     try {
       proc = spawn(
         ytdlp,
         [
           ...cookieArgs,
-          ...headerArgs,
-          ...extractorArgs,
           "--no-warnings",
           "--get-id",
           "--no-playlist",
@@ -220,19 +216,15 @@ function runYoutubeProbe(
       }
       const errText = (stderr || stdout).trim().slice(-1200);
       const botChallenge = /sign in|not a bot/i.test(errText);
-      const drmReported = /DRM protected|drm protected/i.test(errText);
       const cookiesOn = isYtDlpCookiesConfigured();
       let hint =
         "Update: yt-dlp -U  ·  Install ffmpeg if needed: brew install ffmpeg";
-      if (drmReported) {
+      if (botChallenge && !cookiesOn) {
         hint =
-          "YouTube reported DRM for this client. Default uses web_safari+mweb (not tv). Override with YT_DLP_YOUTUBE_EXTRACTOR_ARGS=player_client=web_safari or mweb. If you still use `tv`, remove it — it often falsely flags music videos.";
-      } else if (botChallenge && !cookiesOn) {
-        hint =
-          "YouTube is challenging this server IP. Set YT_DLP_COOKIES or YT_DLP_COOKIES_FILE (exact /etc/secrets/<filename> on Render). See yt-dlp wiki: exporting YouTube cookies.";
+          "YouTube may require cookies on this host. Set YT_DLP_COOKIES_FILE or YT_DLP_COOKIES (see yt-dlp wiki).";
       } else if (botChallenge && cookiesOn) {
         hint =
-          "Cookies are passed but YouTube still blocked the request. Re-export fresh Netscape cookies (logged-in session), ensure the file is not empty, update yt-dlp on deploy, and see yt-dlp PO Token guide if issues persist.";
+          "Cookies are set but YouTube still rejected the request. Re-export cookies or update yt-dlp.";
       }
       done({
         ok: false,
@@ -322,10 +314,9 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
     }
 
     /**
-     * Format + client: defaults avoid `tv` (DRM false-positives); see {@link getYtDlpYoutubeExtractorArgs}.
-     * Override with `YT_DLP_YOUTUBE_FORMAT` / `YT_DLP_YOUTUBE_EXTRACTOR_ARGS`.
-     * We sniff the first bytes so Content-Type matches the stream.
-     * `?start=N` (seconds): stream from N — uses `--download-sections` (**ffmpeg required**).
+     * Prefer m4a (itag 140); fall back to other audio. Sniff first bytes for Content-Type.
+     * Optional: `YT_DLP_YOUTUBE_EXTRACTOR_ARGS`, `YT_DLP_USER_AGENT`, `YT_DLP_YOUTUBE_FORMAT`.
+     * `?start=N` uses `--download-sections` (ffmpeg required).
      */
     const ytdlpArgs = [
       ...getYtDlpCookieCliArgs(),
@@ -398,17 +389,13 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
         const combinedErr =
           stderrTail + (err instanceof Error ? err.message : "");
         const botChallenge = /sign in|not a bot/i.test(combinedErr);
-        const drmReported = /DRM protected|drm protected/i.test(combinedErr);
         let streamHint: string | undefined;
-        if (drmReported) {
+        if (botChallenge && !cookiesOn) {
           streamHint =
-            "The `tv` Innertube client often returns “DRM protected” for ordinary uploads. Defaults now use web_safari+mweb. Set YT_DLP_YOUTUBE_EXTRACTOR_ARGS if you still override with player_client=tv.";
-        } else if (botChallenge && !cookiesOn) {
-          streamHint =
-            "No cookies were loaded. Set YT_DLP_COOKIES_FILE to the exact Render secret path (e.g. /etc/secrets/www.youtube.com_cookies) or paste Netscape cookies into YT_DLP_COOKIES.";
+            "YouTube may require cookies on this host. Set YT_DLP_COOKIES_FILE or YT_DLP_COOKIES (see yt-dlp wiki).";
         } else if (botChallenge && cookiesOn) {
           streamHint =
-            "Cookies are set but YouTube still blocked the request. Re-export fresh Netscape cookies, confirm the secret file is not empty, and redeploy with the latest yt-dlp.";
+            "Cookies are set but YouTube still rejected the request. Re-export cookies or run yt-dlp -U on the server.";
         }
         void reply.status(503).send({
           error: "youtube_audio_stream_failed",
