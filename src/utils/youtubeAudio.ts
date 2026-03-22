@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { spawnSync } from "child_process";
 
@@ -19,6 +20,65 @@ export function resolveYtDlpExecutable(): string {
     /* */
   }
   return "yt-dlp";
+}
+
+/** Lazily written from `YT_DLP_COOKIES` inline text (yt-dlp only accepts `--cookies` paths). */
+let ytDlpCookiesFromEnvPath: string | null = null;
+
+function resolveCookieFilePath(raw: string): string | null {
+  const resolved = path.isAbsolute(raw)
+    ? raw
+    : path.join(process.cwd(), raw);
+  try {
+    if (fs.existsSync(resolved)) {
+      return resolved;
+    }
+  } catch {
+    /* */
+  }
+  return null;
+}
+
+/**
+ * Optional Netscape-format cookies for YouTube (`yt-dlp --cookies`).
+ *
+ * - `YT_DLP_COOKIES_FILE` — path to a cookies file (absolute or relative to cwd).
+ * - `YT_DLP_COOKIES` — either the **full Netscape file contents** (multiline secret on Render),
+ *   or a single-line path to a file if that path exists (backward compatible).
+ *
+ * Required on many hosts (e.g. cloud IPs) when YouTube returns "Sign in to confirm you're not a bot".
+ * See yt-dlp wiki: exporting YouTube cookies. Do not commit cookie material.
+ */
+export function getYtDlpCookieCliArgs(): string[] {
+  const fileEnv = process.env.YT_DLP_COOKIES_FILE?.trim();
+  if (fileEnv) {
+    const p = resolveCookieFilePath(fileEnv);
+    if (p) {
+      return ["--cookies", p];
+    }
+  }
+
+  const inlineOrPath = process.env.YT_DLP_COOKIES?.trim();
+  if (!inlineOrPath) {
+    return [];
+  }
+
+  if (!inlineOrPath.includes("\n")) {
+    const p = resolveCookieFilePath(inlineOrPath);
+    if (p) {
+      return ["--cookies", p];
+    }
+  }
+
+  if (ytDlpCookiesFromEnvPath) {
+    return ["--cookies", ytDlpCookiesFromEnvPath];
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ytdlp-cookies-"));
+  const cookiePath = path.join(dir, "cookies.txt");
+  fs.writeFileSync(cookiePath, inlineOrPath, { encoding: "utf8", mode: 0o600 });
+  ytDlpCookiesFromEnvPath = cookiePath;
+  return ["--cookies", cookiePath];
 }
 
 let ffmpegVerifiedAvailable = false;

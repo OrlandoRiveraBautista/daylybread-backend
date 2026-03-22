@@ -9,6 +9,7 @@ import {
   parseYoutubeAudioStartQuery,
   resolveFfmpegExecutable,
   resolveYtDlpExecutable,
+  getYtDlpCookieCliArgs,
 } from "../utils/youtubeAudio";
 
 /** CORS origins aligned with Apollo in app.ts */
@@ -145,10 +146,11 @@ function runYoutubeProbe(
     };
 
     let proc: ChildProcess;
+    const cookieArgs = getYtDlpCookieCliArgs();
     try {
       proc = spawn(
         ytdlp,
-        ["--no-warnings", "--get-id", "--no-playlist", watchUrl],
+        [...cookieArgs, "--no-warnings", "--get-id", "--no-playlist", watchUrl],
         { stdio: ["ignore", "pipe", "pipe"] },
       );
     } catch (err) {
@@ -202,10 +204,14 @@ function runYoutubeProbe(
         return;
       }
       const errText = (stderr || stdout).trim().slice(-1200);
+      const needsCookies =
+        /sign in|not a bot/i.test(errText) && getYtDlpCookieCliArgs().length === 0;
       done({
         ok: false,
         message: errText || `yt-dlp exited with code ${code}`,
-        hint: "Update: yt-dlp -U  ·  Install ffmpeg if needed: brew install ffmpeg",
+        hint: needsCookies
+          ? "YouTube is challenging this server IP. Set YT_DLP_COOKIES to the full Netscape cookie text, or YT_DLP_COOKIES_FILE to a path (see yt-dlp wiki: exporting YouTube cookies). Also run yt-dlp -U on deploy."
+          : "Update: yt-dlp -U  ·  Install ffmpeg if needed: brew install ffmpeg",
       });
     });
   });
@@ -292,6 +298,7 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
      * Without ffmpeg, omit ?start and seek will reload from 0 only.
      */
     const ytdlpArgs = [
+      ...getYtDlpCookieCliArgs(),
       "-f",
       "140/ba[ext=m4a]/ba/bestaudio/best",
       "-o",
