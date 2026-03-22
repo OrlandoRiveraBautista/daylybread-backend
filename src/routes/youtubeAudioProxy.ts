@@ -152,11 +152,15 @@ function runYoutubeProbe(
 
     let proc: ChildProcess;
     const cookieArgs = getYtDlpCookieCliArgs();
+    const headerArgs = getYtDlpBrowserHeadersArgs();
+    const extractorArgs = getYtDlpYoutubeExtractorArgs();
     try {
       proc = spawn(
         ytdlp,
         [
           ...cookieArgs,
+          ...headerArgs,
+          ...extractorArgs,
           "--no-warnings",
           "--get-id",
           "--no-playlist",

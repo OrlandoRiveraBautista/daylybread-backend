@@ -150,26 +150,41 @@ export function warnIfYtDlpCookieFileEnvMissing(log: {
   }
 }
 
-/** Optional `--add-headers` when `YT_DLP_USER_AGENT` is set (advanced; default is plain yt-dlp). */
+/** Chrome-like UA used with cookies when no `YT_DLP_USER_AGENT` (helps match a real browser session on cloud IPs). */
+const YT_DLP_DEFAULT_COOKIE_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+/**
+ * `--add-headers` for User-Agent. Uses `YT_DLP_USER_AGENT` if set; if cookies are active and no env, uses a Chrome UA.
+ */
 export function getYtDlpBrowserHeadersArgs(): string[] {
   const ua = process.env.YT_DLP_USER_AGENT?.trim();
-  if (!ua) {
-    return [];
+  if (ua) {
+    return ["--add-headers", `User-Agent:${ua}`];
   }
-  return ["--add-headers", `User-Agent:${ua}`];
+  if (getYtDlpCookieCliArgs().length > 0) {
+    return ["--add-headers", `User-Agent:${YT_DLP_DEFAULT_COOKIE_UA}`];
+  }
+  return [];
 }
 
 /**
- * Optional `--extractor-args youtube:…` when `YT_DLP_YOUTUBE_EXTRACTOR_ARGS` is set.
- * Default is **none** — yt-dlp uses its own YouTube client selection (same as CLI).
+ * `--extractor-args` for YouTube.
+ * - If `YT_DLP_YOUTUBE_EXTRACTOR_ARGS` is set, that wins (value after `youtube:` optional).
+ * - Else if `--cookies` is used: **`web,web_safari`** — avoids the default **android vr** path that often still returns
+ *   “sign in to confirm you’re not a bot” even with valid cookies (cookies match browser/web, not TV/VR clients).
+ * - Else: none (plain yt-dlp defaults for local / no cookies).
  */
 export function getYtDlpYoutubeExtractorArgs(): string[] {
   const raw = process.env.YT_DLP_YOUTUBE_EXTRACTOR_ARGS?.trim();
-  if (!raw) {
-    return [];
+  if (raw) {
+    const value = raw.startsWith("youtube:") ? raw : `youtube:${raw}`;
+    return ["--extractor-args", value];
   }
-  const value = raw.startsWith("youtube:") ? raw : `youtube:${raw}`;
-  return ["--extractor-args", value];
+  if (getYtDlpCookieCliArgs().length > 0) {
+    return ["--extractor-args", "youtube:player_client=web,web_safari"];
+  }
+  return [];
 }
 
 /**
