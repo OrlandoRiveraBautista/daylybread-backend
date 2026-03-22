@@ -25,6 +25,9 @@ export function resolveYtDlpExecutable(): string {
 /** Lazily written from `YT_DLP_COOKIES` inline text (yt-dlp only accepts `--cookies` paths). */
 let ytDlpCookiesFromEnvPath: string | null = null;
 
+/** Writable copy of a cookie file path (e.g. Render `/etc/secrets/*` is read-only; yt-dlp saves cookies back). */
+let ytDlpCookiesWritableCopyPath: string | null = null;
+
 function resolveCookieFilePath(raw: string): string | null {
   const resolved = path.isAbsolute(raw)
     ? raw
@@ -39,10 +42,27 @@ function resolveCookieFilePath(raw: string): string | null {
   return null;
 }
 
+function getWritableCookiePathFromSourceFile(sourcePath: string): string | null {
+  if (ytDlpCookiesWritableCopyPath) {
+    return ytDlpCookiesWritableCopyPath;
+  }
+  try {
+    const raw = fs.readFileSync(sourcePath, "utf8");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ytdlp-cookies-"));
+    const dest = path.join(dir, "cookies.txt");
+    fs.writeFileSync(dest, raw, { encoding: "utf8", mode: 0o600 });
+    ytDlpCookiesWritableCopyPath = dest;
+    return dest;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Optional Netscape-format cookies for YouTube (`yt-dlp --cookies`).
  *
  * - `YT_DLP_COOKIES_FILE` — path to a cookies file (absolute or relative to cwd).
+ *   Read-only mounts (e.g. Render `/etc/secrets/…`) are copied to a temp file so yt-dlp can update cookies.
  * - `YT_DLP_COOKIES` — either the **full Netscape file contents** (multiline secret on Render),
  *   or a single-line path to a file if that path exists (backward compatible).
  *
@@ -54,7 +74,10 @@ export function getYtDlpCookieCliArgs(): string[] {
   if (fileEnv) {
     const p = resolveCookieFilePath(fileEnv);
     if (p) {
-      return ["--cookies", p];
+      const writable = getWritableCookiePathFromSourceFile(p);
+      if (writable) {
+        return ["--cookies", writable];
+      }
     }
   }
 
@@ -66,7 +89,10 @@ export function getYtDlpCookieCliArgs(): string[] {
   if (!inlineOrPath.includes("\n")) {
     const p = resolveCookieFilePath(inlineOrPath);
     if (p) {
-      return ["--cookies", p];
+      const writable = getWritableCookiePathFromSourceFile(p);
+      if (writable) {
+        return ["--cookies", writable];
+      }
     }
   }
 
