@@ -150,12 +150,12 @@ export function warnIfYtDlpCookieFileEnvMissing(log: {
   }
 }
 
-/** Chrome-like UA used with cookies when no `YT_DLP_USER_AGENT` (helps match a real browser session on cloud IPs). */
+/** Chrome-like UA when passing cookies without `YT_DLP_USER_AGENT`. */
 const YT_DLP_DEFAULT_COOKIE_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 /**
- * `--add-headers` for User-Agent. Uses `YT_DLP_USER_AGENT` if set; if cookies are active and no env, uses a Chrome UA.
+ * `--add-headers` (repeated). `YT_DLP_USER_AGENT` only if set; else Chrome UA + Accept* when cookies are used.
  */
 export function getYtDlpBrowserHeadersArgs(): string[] {
   const ua = process.env.YT_DLP_USER_AGENT?.trim();
@@ -163,17 +163,24 @@ export function getYtDlpBrowserHeadersArgs(): string[] {
     return ["--add-headers", `User-Agent:${ua}`];
   }
   if (getYtDlpCookieCliArgs().length > 0) {
-    return ["--add-headers", `User-Agent:${YT_DLP_DEFAULT_COOKIE_UA}`];
+    return [
+      "--add-headers",
+      `User-Agent:${YT_DLP_DEFAULT_COOKIE_UA}`,
+      "--add-headers",
+      "Accept-Language:en-US,en;q=0.9",
+      "--add-headers",
+      "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    ];
   }
   return [];
 }
 
 /**
  * `--extractor-args` for YouTube.
- * - If `YT_DLP_YOUTUBE_EXTRACTOR_ARGS` is set, that wins (value after `youtube:` optional).
- * - Else if `--cookies` is used: **`web,web_safari`** — avoids the default **android vr** path that often still returns
- *   “sign in to confirm you’re not a bot” even with valid cookies (cookies match browser/web, not TV/VR clients).
- * - Else: none (plain yt-dlp defaults for local / no cookies).
+ * - If `YT_DLP_YOUTUBE_EXTRACTOR_ARGS` is set, that wins.
+ * - Else if `--cookies` is used: **`mweb,web,web_safari`** — merges clients; mobile web often behaves better with
+ *   server-side requests than web-only; still not guaranteed on datacenter IPs (see yt-dlp wiki / PO Token guide).
+ * - Else: none.
  */
 export function getYtDlpYoutubeExtractorArgs(): string[] {
   const raw = process.env.YT_DLP_YOUTUBE_EXTRACTOR_ARGS?.trim();
@@ -182,7 +189,7 @@ export function getYtDlpYoutubeExtractorArgs(): string[] {
     return ["--extractor-args", value];
   }
   if (getYtDlpCookieCliArgs().length > 0) {
-    return ["--extractor-args", "youtube:player_client=web,web_safari"];
+    return ["--extractor-args", "youtube:player_client=mweb,web,web_safari"];
   }
   return [];
 }

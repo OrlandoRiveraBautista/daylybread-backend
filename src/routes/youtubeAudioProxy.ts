@@ -228,7 +228,7 @@ function runYoutubeProbe(
           "YouTube may require cookies on this host. Set YT_DLP_COOKIES_FILE or YT_DLP_COOKIES (see yt-dlp wiki).";
       } else if (botChallenge && cookiesOn) {
         hint =
-          "Cookies are set but YouTube still rejected the request. Re-export cookies or update yt-dlp.";
+          "Cookies are set but Google still blocked the server IP. Re-export fresh Netscape cookies (yt-dlp wiki); try a PO token provider plugin + latest yt-dlp; datacenter IPs often fail even with cookies.";
       }
       done({
         ok: false,
@@ -399,7 +399,7 @@ export function registerYoutubeAudioProxyRoutes(app: FastifyInstance) {
             "YouTube may require cookies on this host. Set YT_DLP_COOKIES_FILE or YT_DLP_COOKIES (see yt-dlp wiki).";
         } else if (botChallenge && cookiesOn) {
           streamHint =
-            "Cookies are set but YouTube still rejected the request. Re-export cookies or run yt-dlp -U on the server.";
+            "Cookies are set but Google still blocked this host (common on cloud IPs). Re-export cookies (incognito + robots.txt per yt-dlp wiki), update yt-dlp, or add a PO token plugin; see yt-dlp PO Token guide.";
         }
         void reply.status(503).send({
           error: "youtube_audio_stream_failed",
