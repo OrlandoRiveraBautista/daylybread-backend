@@ -19,3 +19,17 @@ services:
         value: production
       - key: PUPPETEER_CACHE_DIR
         value: /opt/render/project/src/.cache/puppeteer
+      # Set in the Render dashboard (never commit the real key).
+      - key: BIBLE_BRAIN_API_KEY
+        sync: false
+      # Optional overrides — defaults are fine for most deploys.
+      - key: BIBLE_BRAIN_BASE_URL
+        value: https://4.dbt.io
+      - key: BIBLE_BRAIN_TIMEOUT_MS
+        value: "15000"
+      - key: BIBLE_BRAIN_MAX_RETRIES
+        value: "3"
+      - key: BIBLE_BRAIN_MAX_CONCURRENT
+        value: "10"
+      - key: BIBLE_BRAIN_BOOK_CONCURRENCY
+        value: "5"

@@ -1,173 +1,317 @@
-import axios from "axios";
-import config from "../misc/biblebrain/axiosConfig";
 import { underscoreToCamelCase } from "../utility";
+import { bibleBrainGet } from "../misc/biblebrain/client";
+import { bibleBrainCache } from "../misc/biblebrain/ttlCache";
+import { mapLimit } from "../misc/biblebrain/mapLimit";
 import {
   AudioMediaResponse,
   BibleReponse,
   BookResponse,
   CopyrightResponse,
   LanguageReponse,
+  MediaTimestampResponse,
   VerseResponse,
 } from "../resolvers/Bible/BibleBrain/types";
+import { BBBible } from "../misc/biblebrain/bibleTypes";
+import { BBBook } from "../misc/biblebrain/bookTypes";
+import { BBMetadata } from "../misc/biblebrain/metadataTypes";
+
+const TTL = {
+  languages: 6 * 60 * 60 * 1000, // 6h
+  bibles: 2 * 60 * 60 * 1000, // 2h
+  books: 24 * 60 * 60 * 1000, // 24h
+  verses: 60 * 60 * 1000, // 1h
+  media: 60 * 60 * 1000, // 1h
+  copyright: 24 * 60 * 60 * 1000, // 24h
+  filteredList: 60 * 60 * 1000, // 1h
+} as const;
+
+const BOOK_FANOUT_CONCURRENCY =
+  Number(process.env.BIBLE_BRAIN_BOOK_CONCURRENCY) || 5;
+
+type CanonInfo = {
+  include: boolean;
+  books: BBBook[];
+};
+
+function asResponse<T extends object>(
+  ResponseType: new () => T,
+  data: unknown,
+  camelCase = true
+): T {
+  const payload = camelCase ? underscoreToCamelCase(data) : data;
+  return Object.assign(new ResponseType(), payload);
+}
+
+function normalizeListPayload<T>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (raw && typeof raw === "object" && Array.isArray((raw as { data?: unknown }).data)) {
+    return (raw as { data: T[] }).data;
+  }
+  return [];
+}
 
 class BibleBrainService {
-  constructor() {}
-
   /**
-   * Function to call the bible brain service specifying the url and response type
-   * @param url
-   * @param responseType
-   * @returns An object with the response type you have provided
+   * Cached GET with optional camelCase transform into a response class.
    */
-  private async callService<T extends object>(
-    url: string,
-    responseType: new () => T
+  private async cachedGet<T extends object>(
+    cacheKey: string,
+    ttlMs: number,
+    path: string,
+    ResponseType: new () => T,
+    params?: Record<string, string | number | boolean | undefined>,
+    camelCase = true
   ): Promise<T> {
-    config.url = url;
-
-    const { data } = await axios(config);
-    const camelCaseData = underscoreToCamelCase(data);
-
-    return Object.assign(new responseType(), camelCaseData);
+    return bibleBrainCache.getOrSet(cacheKey, ttlMs, async () => {
+      const data = await bibleBrainGet(path, params);
+      return asResponse(ResponseType, data, camelCase);
+    });
   }
 
-  /**
-   * Will return all available languages.
-   * You can specify a country or leave it blank for all languages
-   */
+  /** All available languages (optionally by country). */
   public async getAvailableLanguages(country?: string, page: number = 1) {
-    // set url pased on if the user picked a country or not
-    const url = country
-      ? `https://4.dbt.io/api/languages?include_alt_names=true&country=${country}&v=4&page=${page}`
-      : `https://4.dbt.io/api/languages?v=4&page=${page}`;
-
-    const response = await this.callService(url, LanguageReponse);
-
-    return response;
+    const cacheKey = `languages:${country || "all"}:${page}`;
+    return this.cachedGet(
+      cacheKey,
+      TTL.languages,
+      "/api/languages",
+      LanguageReponse,
+      {
+        page,
+        include_alt_names: country ? true : undefined,
+        country,
+      }
+    );
   }
 
-  /**
-   * Will return a list of languages from a search.
-   * You can also specify the media you want to include in your search, all other medias will be excluded.
-   */
+  /** Language search. */
   public async searchAvailableLanguages(
     search?: string,
     mediaInclude?: string
   ) {
-    // set url pased on if the user picked a country or not
-    /**
-     * ! 3/29/2024 mediaInclude is down
-     */
-    const url = `https://4.dbt.io/api/languages/search/${search}?v=4
-    ${mediaInclude ? `&set_type_code=${mediaInclude}` : ""}`;
+    const term = (search || "").trim();
+    if (!term) {
+      return asResponse(LanguageReponse, { data: [], meta: { pagination: {} } });
+    }
 
-    const response = await this.callService(url, LanguageReponse);
-
-    return response;
+    const cacheKey = `languages:search:${term}:${mediaInclude || ""}`;
+    return this.cachedGet(
+      cacheKey,
+      TTL.languages,
+      `/api/languages/search/${encodeURIComponent(term)}`,
+      LanguageReponse,
+      {
+        set_type_code: mediaInclude,
+      }
+    );
   }
 
-  /**
-   * Will return all available titles by language code
-   * You can specify media to exclude or include
-   */
+  /** Available bibles by language / media filters. */
   public async getAvailableBibles(
     mediaExclude?: string,
     mediaInclude?: string,
     languageCode?: string,
-    page?: number
+    page: number = 1
   ) {
-    // set url with correct params
-    const url = `https://4.dbt.io/api/bibles?page=${page}
-        ${languageCode ? `&language_code=${languageCode}` : ""}
-        ${mediaExclude ? `&media_excluded=${mediaExclude}` : ""}
-        ${mediaInclude ? `&media=${mediaInclude}` : ""}`;
-
-    const response = await this.callService(url, BibleReponse);
-
-    return response;
+    const cacheKey = `bibles:${languageCode || ""}:${mediaInclude || ""}:${mediaExclude || ""}:${page}`;
+    return this.cachedGet(
+      cacheKey,
+      TTL.bibles,
+      "/api/bibles",
+      BibleReponse,
+      {
+        page,
+        language_code: languageCode,
+        media_excluded: mediaExclude,
+        media: mediaInclude,
+      }
+    );
   }
 
-  /**
-   * Will return all available titles for a search
-   * !This is currently not in use and should be implemented with the history in the frontend or something
-   */
-  public async searchAvailableBibles(search?: string, page?: number) {
-    // set url with correct params
-    const url = `https://4.dbt.io/api/bibles/search/${search}?v=4page=${page}`;
+  /** Search bibles by title/term. */
+  public async searchAvailableBibles(search?: string, page: number = 1) {
+    const term = (search || "").trim();
+    if (!term) {
+      return asResponse(BibleReponse, { data: [], meta: { pagination: {} } });
+    }
 
-    const response = await this.callService(url, BibleReponse);
-
-    return response;
+    const cacheKey = `bibles:search:${term}:${page}`;
+    return this.cachedGet(
+      cacheKey,
+      TTL.bibles,
+      `/api/bibles/search/${encodeURIComponent(term)}`,
+      BibleReponse,
+      { page }
+    );
   }
 
-  /**
-   * Will return all available books for a give bible by bibleId
-   */
+  /** Books for a bible abbreviation / id. */
   public async getAvailableBooks(bibleId: string) {
-    // set url pased on if the user picked a country or not
-    const url = `https://4.dbt.io/api/bibles/${bibleId}/book?verify_content=true`;
-
-    const response = await this.callService(url, BookResponse);
-
-    return response;
+    const cacheKey = `books:${bibleId}`;
+    return this.cachedGet(
+      cacheKey,
+      TTL.books,
+      `/api/bibles/${encodeURIComponent(bibleId)}/book`,
+      BookResponse,
+      { verify_content: true }
+    );
   }
 
   /**
-   * Will return all available verse for a give chapter
+   * Canon filter used by bible list: exclude deuterocanonical / Catholic OT sets.
+   * Cached per abbreviation so list fan-out is cheap after warm-up.
+   */
+  public async getCanonInfo(bibleAbbr: string): Promise<CanonInfo> {
+    const cacheKey = `canon:${bibleAbbr}`;
+    return bibleBrainCache.getOrSet(cacheKey, TTL.books, async () => {
+      const { data: books } = await this.getAvailableBooks(bibleAbbr);
+      let hasAP = false;
+      let otCount = 0;
+
+      for (const book of books || []) {
+        if (book.testament === "OT") otCount++;
+        if (book.testament === "AP") {
+          hasAP = true;
+          break;
+        }
+      }
+
+      return {
+        include: !(otCount === 46 || hasAP),
+        books: books || [],
+      };
+    });
+  }
+
+  /**
+   * Filtered bible list: protestant / non-AP only.
+   * Uses cached canon checks + concurrency cap instead of unbounded Promise.all.
+   */
+  public async getFilteredAvailableBibles(
+    mediaExclude?: string,
+    mediaInclude?: string,
+    languageCode?: string,
+    page: number = 1
+  ): Promise<BibleReponse> {
+    const cacheKey = `bibles:filtered:${languageCode || ""}:${mediaInclude || ""}:${mediaExclude || ""}:${page}`;
+
+    return bibleBrainCache.getOrSet(cacheKey, TTL.filteredList, async () => {
+      const list = await this.getAvailableBibles(
+        mediaExclude,
+        mediaInclude,
+        languageCode,
+        page
+      );
+
+      const bibles = (list.data || []) as BBBible[];
+      const decisions = await mapLimit(
+        bibles,
+        BOOK_FANOUT_CONCURRENCY,
+        async (bible) => {
+          if (!bible.abbr) return null;
+          const { include } = await this.getCanonInfo(bible.abbr);
+          return include ? bible : null;
+        }
+      );
+
+      const filtered = decisions.filter((b): b is BBBible => b !== null);
+      const pagination = list.meta?.pagination
+        ? {
+            ...list.meta.pagination,
+            count: filtered.length,
+          }
+        : { count: filtered.length };
+
+      const response = new BibleReponse();
+      response.data = filtered as BibleReponse["data"];
+      response.meta = { pagination } as BBMetadata;
+      return response;
+    });
+  }
+
+  /**
+   * Verses for a chapter.
+   * Note: `bibleId` here is a DBP text fileset id, not a bible abbreviation.
    */
   public async getAvailableVerse(
-    bibleId: string,
+    filesetId: string,
     bookId: string,
     chapterNumber: number
   ) {
-    // set url pased on if the user picked a country or not
-    const url = `https://4.dbt.io/api/bibles/filesets/${bibleId}/${bookId}/${chapterNumber}`;
-
-    const response = await this.callService(url, VerseResponse);
-
-    return response;
+    const cacheKey = `verses:${filesetId}:${bookId}:${chapterNumber}`;
+    return this.cachedGet(
+      cacheKey,
+      TTL.verses,
+      `/api/bibles/filesets/${encodeURIComponent(filesetId)}/${encodeURIComponent(bookId)}/${chapterNumber}`,
+      VerseResponse
+    );
   }
 
   /**
-   * Will return the copyright information for a given bible by the bibleId
+   * Copyright for a bible. Keeps snake_case keys to match GraphQL field names
+   * (`asset_id`, `copyright_date`, etc.).
    */
-  public async getCopyright(bibleId: string) {
-    const url = `https://4.dbt.io/api/bibles/${bibleId}/copyright?&v=4`;
-
-    const response = await this.callService(url, CopyrightResponse);
-
-    return { data: response }; // copyright response a bit different
+  public async getCopyright(bibleId: string): Promise<CopyrightResponse> {
+    const cacheKey = `copyright:${bibleId}`;
+    return bibleBrainCache.getOrSet(cacheKey, TTL.copyright, async () => {
+      const raw = await bibleBrainGet(
+        `/api/bibles/${encodeURIComponent(bibleId)}/copyright`
+      );
+      const response = new CopyrightResponse();
+      response.data = normalizeListPayload(raw) as CopyrightResponse["data"];
+      return response;
+    });
   }
 
   /**
-   * Will return all available media for a given filesetId, bookId, and chapter number
+   * Audio media for a fileset/chapter. Keeps snake_case for GraphQL fields.
    */
   public async getMedia(
     filesetId: string,
     bookId: string,
     chapterNumber: number
-  ) {
-    const url = `https://4.dbt.io/api/bibles/filesets/${filesetId}/${bookId}/${chapterNumber}`;
-
-    const response = await this.callService(url, AudioMediaResponse);
-
-    return response;
+  ): Promise<AudioMediaResponse> {
+    const cacheKey = `media:${filesetId}:${bookId}:${chapterNumber}`;
+    return bibleBrainCache.getOrSet(cacheKey, TTL.media, async () => {
+      const raw = await bibleBrainGet(
+        `/api/bibles/filesets/${encodeURIComponent(filesetId)}/${encodeURIComponent(bookId)}/${chapterNumber}`
+      );
+      const response = new AudioMediaResponse();
+      response.data = normalizeListPayload(raw) as AudioMediaResponse["data"];
+      return response;
+    });
   }
 
   /**
-   * Will return all available timestamps for a give filesetId, bookId, and chapter number
+   * Verse timestamps for audio. Keeps snake_case for GraphQL fields.
    */
   public async getMediaTimestamps(
     filesetId: string,
     bookId: string,
     chapterNumber: number
-  ) {
-    const url = `https://4.dbt.io/api/timestamps/${filesetId}/${bookId}/${chapterNumber}`;
-
-    const response = await this.callService(url, AudioMediaResponse);
-
-    return response;
+  ): Promise<MediaTimestampResponse> {
+    const cacheKey = `timestamps:${filesetId}:${bookId}:${chapterNumber}`;
+    return bibleBrainCache.getOrSet(cacheKey, TTL.media, async () => {
+      const raw = await bibleBrainGet(
+        `/api/timestamps/${encodeURIComponent(filesetId)}/${encodeURIComponent(bookId)}/${chapterNumber}`
+      );
+      const response = new MediaTimestampResponse();
+      response.data = normalizeListPayload(
+        raw
+      ) as MediaTimestampResponse["data"];
+      return response;
+    });
   }
+}
+
+let sharedInstance: BibleBrainService | undefined;
+
+/** Shared singleton — safe because the HTTP client never mutates per-request state. */
+export function getBibleBrainService(): BibleBrainService {
+  if (!sharedInstance) {
+    sharedInstance = new BibleBrainService();
+  }
+  return sharedInstance;
 }
 
 export default BibleBrainService;
