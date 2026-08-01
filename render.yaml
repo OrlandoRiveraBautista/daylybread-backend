@@ -1,0 +1,17 @@
+# Render Blueprint (optional). In the dashboard, set Root Directory to daylybread-backend.
+#
+# Chord import (CifraClub / Ultimate Guitar) uses headless Chromium on the server.
+# It does NOT open a browser on the user's phone — same GraphQL API as before.
+#
+# Use at least 1 GB RAM on the web service; 512 MB often OOMs when Chromium starts.
+
+services:
+  - type: web
+    name: daylybread-api
+    runtime: node
+    rootDir: daylybread-backend
+    buildCommand: npm install && node scripts/ensure-chord-fetch-deps.cjs && npm run compile
+    startCommand: node dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
