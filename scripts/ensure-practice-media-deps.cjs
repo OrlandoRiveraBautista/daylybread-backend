@@ -11,9 +11,13 @@
  *
  * Windows: install yt-dlp / ffmpeg yourself or set YT_DLP_PATH / FFMPEG_PATH.
  *
+ * Failures are soft by default: Practice YouTube audio may be unavailable, but
+ * `npm run dev` / `compile` still continue so the rest of the API can start.
+ *
  * Env:
  *   SKIP_PRACTICE_MEDIA_DOWNLOAD=1 — do not download anything (only verify existing).
  *   SKIP_FFMPEG_DOWNLOAD=1        — do not download ffmpeg (yt-dlp may still download).
+ *   REQUIRE_PRACTICE_MEDIA_DEPS=1 — exit non-zero on failure (CI / deploys that need Practice).
  */
 
 const { spawnSync } = require("child_process");
@@ -54,14 +58,60 @@ function skipFfmpegDownload() {
   );
 }
 
+function requirePracticeMediaDeps() {
+  return process.env.REQUIRE_PRACTICE_MEDIA_DEPS === "1";
+}
+
+/** Soft-fail unless REQUIRE_PRACTICE_MEDIA_DEPS=1. */
+function reportOptionalFailure(message) {
+  console.error(`[practice-media-deps] ${message}`);
+  console.error(
+    "[practice-media-deps] continuing without Practice media deps (Worship Practice audio may fail). Set REQUIRE_PRACTICE_MEDIA_DEPS=1 to make this fatal.",
+  );
+  if (requirePracticeMediaDeps()) {
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * PyInstaller yt-dlp_macos often spends ~20s in wait4 on cold start (macOS
+ * Gatekeeper / onefile extract). Keep headroom so the ensure step does not
+ * false-fail right at the old 20s cutoff.
+ */
+const VERSION_CHECK_TIMEOUT_MS = 90000;
+
 function works(exe, args) {
   const r = spawnSync(exe, args, {
     encoding: "utf8",
-    timeout: 20000,
+    timeout: VERSION_CHECK_TIMEOUT_MS,
     env: process.env,
     windowsHide: true,
   });
   return r.status === 0;
+}
+
+/** @returns {{ ok: boolean, detail?: string }} */
+function worksDetailed(exe, args) {
+  const r = spawnSync(exe, args, {
+    encoding: "utf8",
+    timeout: VERSION_CHECK_TIMEOUT_MS,
+    env: process.env,
+    windowsHide: true,
+  });
+  if (r.status === 0) return { ok: true };
+  if (r.error) {
+    return { ok: false, detail: String(r.error.message || r.error) };
+  }
+  if (r.signal) {
+    return { ok: false, detail: `killed by ${r.signal}` };
+  }
+  const err = (r.stderr || "").trim();
+  return {
+    ok: false,
+    detail: err
+      ? `exit ${r.status}: ${err.slice(0, 300)}`
+      : `exit ${r.status}`,
+  };
 }
 
 function ytDlpWorks(exe) {
@@ -194,19 +244,17 @@ async function ensureYtDlp() {
   }
 
   if (skipAllDownloads()) {
-    log(
+    reportOptionalFailure(
       "yt-dlp not found; set SKIP_PRACTICE_MEDIA_DOWNLOAD=0 to auto-download, or install yt-dlp / YT_DLP_PATH.",
     );
-    process.exitCode = 1;
     return;
   }
 
   const asset = ytdlpReleaseAssetFilename();
   if (!asset) {
-    process.stderr.write(
-      "[practice-media-deps] yt-dlp not found. On Windows install via pip/scoop or set YT_DLP_PATH.\n",
+    reportOptionalFailure(
+      "yt-dlp not found. On Windows install via pip/scoop or set YT_DLP_PATH.",
     );
-    process.exitCode = 1;
     return;
   }
 
@@ -214,13 +262,14 @@ async function ensureYtDlp() {
   try {
     await downloadYtDlpAsset(asset);
   } catch (e) {
-    console.error("[practice-media-deps] yt-dlp download failed:", e.message || e);
-    process.exitCode = 1;
+    reportOptionalFailure(`yt-dlp download failed: ${e.message || e}`);
     return;
   }
-  if (!tryPath(BIN_YTDLP, ytDlpWorks)) {
-    console.error("[practice-media-deps] yt-dlp binary did not run.");
-    process.exitCode = 1;
+  const check = worksDetailed(BIN_YTDLP, ["--version"]);
+  if (!check.ok) {
+    reportOptionalFailure(
+      `yt-dlp binary did not run${check.detail ? ` (${check.detail})` : ""}. tip: first launch of yt-dlp_macos can take >20s on macOS; or install via brew and ensure yt-dlp is on PATH.`,
+    );
   } else {
     log("installed ./bin/yt-dlp");
   }
@@ -429,14 +478,12 @@ async function ensureFfmpeg() {
       await downloadLinuxFfmpeg();
     }
   } catch (e) {
-    console.error("[practice-media-deps] ffmpeg download failed:", e.message || e);
-    process.exitCode = 1;
+    reportOptionalFailure(`ffmpeg download failed: ${e.message || e}`);
     return;
   }
 
   if (!tryPath(BIN_FFMPEG, ffmpegWorks)) {
-    console.error("[practice-media-deps] ./bin/ffmpeg did not run.");
-    process.exitCode = 1;
+    reportOptionalFailure("./bin/ffmpeg did not run.");
   } else {
     log("installed ./bin/ffmpeg (API will use it automatically)");
   }
@@ -444,11 +491,10 @@ async function ensureFfmpeg() {
 
 async function main() {
   await ensureYtDlp();
-  if (process.exitCode) return;
+  // Still try ffmpeg even if yt-dlp failed — each is independently useful.
   await ensureFfmpeg();
 }
 
 main().catch((e) => {
-  console.error("[practice-media-deps]", e);
-  process.exitCode = 1;
+  reportOptionalFailure(String(e && e.stack ? e.stack : e));
 });
