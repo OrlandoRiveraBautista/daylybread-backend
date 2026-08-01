@@ -10,8 +10,12 @@ services:
     name: daylybread-api
     runtime: node
     rootDir: daylybread-backend
-    buildCommand: npm install && node scripts/ensure-chord-fetch-deps.cjs && npm run compile
-    startCommand: node dist/server.js
+    # postinstall runs `tsc` so dist/ exists even if the dashboard Build Command is only `npm install`.
+    # Still run media/browser ensures here so Practice + chord import work on the slug.
+    buildCommand: npm install && node scripts/ensure-practice-media-deps.cjs && node scripts/ensure-chord-fetch-deps.cjs
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/.cache/puppeteer
