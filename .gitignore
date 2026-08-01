@@ -14,6 +14,8 @@
 /dist
 # yt-dlp / ffmpeg downloaded by scripts/ensure-practice-media-deps.cjs (local & Render build)
 /bin
+# Puppeteer Chromium (ensure-chord-fetch-deps.cjs — installed at build on Render)
+.cache
 
 # misc
 .DS_Store

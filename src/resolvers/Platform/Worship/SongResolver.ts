@@ -15,6 +15,7 @@ import { FieldError } from "../../../entities/Errors/FieldError";
 import { ValidateUser } from "../../../middlewares/userAuth";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import path from "path";
 import puppeteer from "puppeteer";
 
 @ObjectType()
@@ -157,6 +158,70 @@ function extractFromHtml(
   };
 }
 
+const BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+/** Sites that return 403 to plain HTTP clients — skip axios and use Puppeteer. */
+const BROWSER_ONLY_HOSTS = ["cifraclub.com", "ultimate-guitar.com"];
+
+const CHORD_SELECTOR_BY_HOST: Record<string, string> = {
+  "lacuerda.net": "pre",
+  "cifraclub.com": "pre",
+  "ultimate-guitar.com": ".js-store",
+};
+
+function hostNeedsBrowser(hostname: string): boolean {
+  return BROWSER_ONLY_HOSTS.some((h) => hostname.includes(h));
+}
+
+function chordFetchErrorMessage(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/Could not find Chrome|chrome was not found/i.test(msg)) {
+    return process.env.NODE_ENV === "production"
+      ? "Chord import is unavailable on the server right now. Use Paste Text, or contact support."
+      : "Chord import needs Chromium. From daylybread-backend run: npx puppeteer browsers install chrome — then restart the API.";
+  }
+  if (/timeout/i.test(msg)) {
+    return "Request timed out. The site may be slow or blocking automated requests — try Paste Text instead.";
+  }
+  if (/403|blocked|denied/i.test(msg)) {
+    return "This site blocked the import. Try Paste Text and copy the chords from your browser.";
+  }
+  return "Failed to fetch the page. Please check the URL and try again.";
+}
+
+async function fetchChordsWithBrowser(
+  url: string,
+  hostname: string
+): Promise<{ rawText?: string; title?: string; artist?: string; key?: string }> {
+  if (!process.env.PUPPETEER_CACHE_DIR) {
+    process.env.PUPPETEER_CACHE_DIR = path.join(process.cwd(), ".cache", "puppeteer");
+  }
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    ...(process.env.PUPPETEER_EXECUTABLE_PATH
+      ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }
+      : {}),
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent(BROWSER_USER_AGENT);
+    await page.setExtraHTTPHeaders({ "Accept-Language": "es-ES,es;q=0.9,en;q=0.8" });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+    const waitFor = Object.entries(CHORD_SELECTOR_BY_HOST).find(([key]) =>
+      hostname.includes(key)
+    )?.[1];
+    if (waitFor) await page.waitForSelector(waitFor, { timeout: 12000 }).catch(() => {});
+
+    return extractFromHtml(await page.content(), hostname);
+  } finally {
+    await browser.close();
+  }
+}
+
 @Resolver()
 export class SongResolver {
   @ValidateUser()
@@ -172,64 +237,43 @@ export class SongResolver {
       return { errors: [{ field: "url", message: "Invalid URL. Please enter a valid link." }] };
     }
 
-    // ── Step 1: fast cheerio path ──────────────────────────────
-    // Only falls through to Puppeteer on a network/fetch error,
-    // not when the page loaded but had no chord content.
-    let cheerioFailed = false;
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept-Language": "es,en;q=0.9",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-        timeout: 12000,
-      });
-      const result = extractFromHtml(response.data, hostname);
-      if (result.rawText) return result;
-      // Page loaded but no chords found — try Puppeteer in case JS renders them
-    } catch {
-      cheerioFailed = true;
+    // ── Step 1: fast cheerio path (skipped for bot-blocked hosts) ──
+    if (!hostNeedsBrowser(hostname)) {
+      try {
+        const response = await axios.get(url, {
+          headers: {
+            "User-Agent": BROWSER_USER_AGENT,
+            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Referer: "https://www.google.com/",
+          },
+          timeout: 12000,
+          validateStatus: (status) => status < 500,
+        });
+        if (response.status >= 400) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const result = extractFromHtml(response.data, hostname);
+        if (result.rawText) return result;
+      } catch {
+        // fall through to Puppeteer
+      }
     }
 
-    // ── Step 2: Puppeteer fallback (JS-rendered pages) ─────────
-    let browser;
+    // ── Step 2: Puppeteer (required for CifraClub / UG; fallback elsewhere) ──
     try {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-      });
-      const page = await browser.newPage();
-      await page.setUserAgent(
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      );
-      await page.goto(url, { waitUntil: "networkidle2", timeout: 20000 });
-
-      // Wait for the known chord selector per site
-      const selectorMap: Record<string, string> = {
-        "lacuerda.net": "PRE, pre",
-        "cifraclub.com": "pre",
-        "ultimate-guitar.com": ".js-store",
-      };
-      const waitFor = Object.entries(selectorMap).find(([key]) => hostname.includes(key))?.[1];
-      if (waitFor) await page.waitForSelector(waitFor, { timeout: 8000 }).catch(() => {});
-
-      const result = extractFromHtml(await page.content(), hostname);
+      const result = await fetchChordsWithBrowser(url, hostname);
       if (result.rawText) return result;
 
       return {
         errors: [{
           field: "url",
-          message: "Could not extract chord content from this page. Try copying and pasting the text manually.",
+          message:
+            "Could not extract chord content from this page. Try copying and pasting the text manually.",
         }],
       };
-    } catch (err: any) {
-      const message = err?.message?.includes("timeout") || cheerioFailed
-        ? "Request timed out. The site may be blocking automated requests."
-        : "Failed to fetch the page. Please check the URL and try again.";
-      return { errors: [{ field: "url", message }] };
-    } finally {
-      await browser?.close();
+    } catch (err: unknown) {
+      return { errors: [{ field: "url", message: chordFetchErrorMessage(err) }] };
     }
   }
 
