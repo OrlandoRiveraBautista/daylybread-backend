@@ -1,7 +1,8 @@
 import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { CopyrightResponse } from "./types";
-import BibleBrainService from "../../../services/BibleBrainService";
+import { getBibleBrainService } from "../../../services/BibleBrainService";
+import { toBibleBrainError } from "./error";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -11,35 +12,27 @@ export class CopyrightArgs {
 }
 
 /**
- * Resolver to get all books for a given bible by bible id
+ * Resolver for Bible Brain copyright metadata.
  */
 @Resolver()
 export class CopyrightResolver {
-  @Query(() => CopyrightResponse || FieldError)
+  @Query(() => CopyrightResponse)
   async getCopyRightByBibleId(
     @Arg("options", () => CopyrightArgs) options: CopyrightArgs
-  ) {
+  ): Promise<CopyrightResponse | FieldError> {
     if (!options.bibleId) {
-      const error: FieldError = {
+      return {
         message: "Please specify bibleId",
         field: "bibleId",
       };
-
-      return error;
     }
 
-    const service = new BibleBrainService();
+    const service = getBibleBrainService();
 
     try {
-      const data = await service.getCopyright(options.bibleId);
-      return data;
+      return await service.getCopyright(options.bibleId);
     } catch (err) {
-      const error: FieldError = {
-        message: err,
-        field: "Calling to get copyright information from bible brain.",
-      };
-
-      return error;
+      return toBibleBrainError(err, "getCopyRightByBibleId");
     }
   }
 }

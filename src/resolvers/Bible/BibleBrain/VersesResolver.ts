@@ -1,11 +1,13 @@
 import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { VerseResponse } from "./types";
-import BibleBrainService from "../../../services/BibleBrainService";
+import { getBibleBrainService } from "../../../services/BibleBrainService";
+import { toBibleBrainError } from "./error";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
 export class VerseArgs {
+  /** DBP text fileset id (not bible abbreviation). */
   @Field()
   bibleId: string;
 
@@ -17,40 +19,43 @@ export class VerseArgs {
 }
 
 /**
- * Resolver to get all books for a given bible by bible id
+ * Resolver to get verses for a fileset / book / chapter.
  */
 @Resolver()
 export class VersesResolver {
-  @Query(() => VerseResponse || FieldError)
+  @Query(() => VerseResponse)
   async getListOfVerseFromBookChapter(
     @Arg("options", () => VerseArgs) options: VerseArgs
-  ) {
+  ): Promise<VerseResponse | FieldError> {
     if (!options.bibleId) {
-      const error: FieldError = {
-        message: "Please specify bibleId",
+      return {
+        message: "Please specify bibleId (text fileset id)",
         field: "bibleId",
       };
-
-      return error;
+    }
+    if (!options.bookId) {
+      return {
+        message: "Please specify bookId",
+        field: "bookId",
+      };
+    }
+    if (options.chapterNumber == null) {
+      return {
+        message: "Please specify chapterNumber",
+        field: "chapterNumber",
+      };
     }
 
-    const service = new BibleBrainService();
+    const service = getBibleBrainService();
 
     try {
-      const data = service.getAvailableVerse(
+      return await service.getAvailableVerse(
         options.bibleId,
         options.bookId,
         options.chapterNumber
       );
-
-      return data;
     } catch (err) {
-      const error: FieldError = {
-        message: err,
-        field: "Calling to get all languages available in Bible Brain",
-      };
-
-      return error;
+      return toBibleBrainError(err, "getListOfVerseFromBookChapter");
     }
   }
 }

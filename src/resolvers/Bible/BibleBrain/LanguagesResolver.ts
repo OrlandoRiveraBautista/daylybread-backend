@@ -1,10 +1,8 @@
 import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
-
-/* Services */
-import BibleBrainService from "../../../services/BibleBrainService";
-
+import { getBibleBrainService } from "../../../services/BibleBrainService";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { LanguageReponse } from "./types";
+import { toBibleBrainError } from "./error";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -26,53 +24,39 @@ export class SearchLanguageArgs {
 }
 
 /**
- * Resolver to get all possible languages
+ * Resolver for Bible Brain languages.
  */
 @Resolver()
 export class LanguagesResolver {
-  @Query(() => LanguageReponse || FieldError)
+  @Query(() => LanguageReponse)
   async getListOfLanguages(
     @Arg("options", () => LanguagesArgs) options: LanguagesArgs
-  ) {
-    const service = new BibleBrainService();
+  ): Promise<LanguageReponse | FieldError> {
+    const service = getBibleBrainService();
 
     try {
-      const data = await service.getAvailableLanguages(
+      return await service.getAvailableLanguages(
         options.country,
-        options.page
+        options.page ?? 1
       );
-
-      return data;
     } catch (err) {
-      const error: FieldError = {
-        message: err,
-        field: "Calling to get all languages available in Bible Brain",
-      };
-
-      return error;
+      return toBibleBrainError(err, "getListOfLanguages");
     }
   }
 
-  @Query(() => LanguageReponse || FieldError)
+  @Query(() => LanguageReponse)
   async searchListOfLanguages(
     @Arg("options", () => SearchLanguageArgs) options: SearchLanguageArgs
-  ) {
-    const service = new BibleBrainService();
+  ): Promise<LanguageReponse | FieldError> {
+    const service = getBibleBrainService();
 
     try {
-      const data = await service.searchAvailableLanguages(
+      return await service.searchAvailableLanguages(
         options.search,
         options.mediaInclude
       );
-
-      return data;
     } catch (err) {
-      const error: FieldError = {
-        message: err,
-        field: "Calling to get all languages available in Bible Brain",
-      };
-
-      return error;
+      return toBibleBrainError(err, "searchListOfLanguages");
     }
   }
 }

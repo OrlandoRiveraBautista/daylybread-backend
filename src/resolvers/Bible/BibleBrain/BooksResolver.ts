@@ -1,7 +1,8 @@
 import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { BookResponse } from "./types";
-import BibleBrainService from "../../../services/BibleBrainService";
+import { getBibleBrainService } from "../../../services/BibleBrainService";
+import { toBibleBrainError } from "./error";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -11,36 +12,27 @@ export class BookArgs {
 }
 
 /**
- * Resolver to get all books for a given bible by bible id
+ * Resolver to get all books for a given bible by bible id / abbreviation.
  */
 @Resolver()
 export class BooksResolver {
-  @Query(() => BookResponse || FieldError)
+  @Query(() => BookResponse)
   async getListOfBooksForBible(
     @Arg("options", () => BookArgs) options: BookArgs
-  ) {
+  ): Promise<BookResponse | FieldError> {
     if (!options.bibleId) {
-      const error: FieldError = {
+      return {
         message: "Please specify bibleId",
         field: "bibleId",
       };
-
-      return error;
     }
 
-    const service = new BibleBrainService();
+    const service = getBibleBrainService();
 
     try {
-      const data = service.getAvailableBooks(options.bibleId);
-
-      return data;
+      return await service.getAvailableBooks(options.bibleId);
     } catch (err) {
-      const error: FieldError = {
-        message: err,
-        field: "Calling to get all languages available in Bible Brain",
-      };
-
-      return error;
+      return toBibleBrainError(err, "getListOfBooksForBible");
     }
   }
 }
