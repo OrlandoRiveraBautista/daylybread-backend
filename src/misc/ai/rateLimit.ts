@@ -5,16 +5,12 @@ type DayBucket = {
   counts: Map<string, number>;
 };
 
-const dailyBuckets: Record<AiFeature, DayBucket> = {
+const dailyBuckets: Partial<Record<AiFeature, DayBucket>> = {
   chat: { dayKey: "", counts: new Map() },
-  mood: { dayKey: "", counts: new Map() },
-  sermon: { dayKey: "", counts: new Map() },
 };
 
-const FEATURE_LIMITS: Record<AiFeature, number> = {
+const FEATURE_LIMITS: Partial<Record<AiFeature, number>> = {
   chat: AI_CONFIG.chatDailyLimit,
-  mood: AI_CONFIG.moodDailyLimit,
-  sermon: AI_CONFIG.sermonDailyLimit,
 };
 
 let activeAiRequests = 0;
@@ -26,7 +22,12 @@ function utcDayKey(date = new Date()): string {
 
 function ensureDayBucket(feature: AiFeature): DayBucket {
   const key = utcDayKey();
-  const bucket = dailyBuckets[feature];
+  let bucket = dailyBuckets[feature];
+  if (!bucket) {
+    bucket = { dayKey: key, counts: new Map() };
+    dailyBuckets[feature] = bucket;
+    return bucket;
+  }
   if (bucket.dayKey !== key) {
     bucket.dayKey = key;
     bucket.counts.clear();
@@ -51,19 +52,25 @@ export class AiInputTooLargeError extends Error {
   }
 }
 
-/** Enforce per-user daily quotas (process-local; use Redis for multi-instance). */
-export function assertWithinDailyLimit(userId: string, feature: AiFeature): void {
-  const bucket = ensureDayBucket(feature);
+/**
+ * Enforce daily quotas for anonymous callers (keyed by device id, etc.).
+ * Process-local only — use Redis for multi-instance.
+ */
+export function assertWithinDailyLimit(key: string, feature: AiFeature): void {
   const limit = FEATURE_LIMITS[feature];
-  const used = bucket.counts.get(userId) || 0;
+  if (limit == null) return;
+
+  const bucket = ensureDayBucket(feature);
+  const used = bucket.counts.get(key) || 0;
   if (used >= limit) {
     throw new AiRateLimitError(feature, limit);
   }
 }
 
-export function recordAiUsage(userId: string, feature: AiFeature): void {
+export function recordAiUsage(key: string, feature: AiFeature): void {
+  if (FEATURE_LIMITS[feature] == null) return;
   const bucket = ensureDayBucket(feature);
-  bucket.counts.set(userId, (bucket.counts.get(userId) || 0) + 1);
+  bucket.counts.set(key, (bucket.counts.get(key) || 0) + 1);
 }
 
 export function assertInputWithinLimit(

@@ -10,9 +10,8 @@ export const AI_CONFIG = {
   maxInputChars: Number(process.env.AI_MAX_INPUT_CHARS) || 4_000,
   sermonContentMaxChars: Number(process.env.AI_SERMON_CONTENT_MAX_CHARS) || 2_000,
   chatHistoryLimit: Number(process.env.AI_CHAT_HISTORY_LIMIT) || 5,
+  /** Anonymous chat only — logged-in users are not daily-capped. */
   chatDailyLimit: Number(process.env.AI_CHAT_DAILY_LIMIT) || 50,
-  sermonDailyLimit: Number(process.env.AI_SERMON_DAILY_LIMIT) || 100,
-  moodDailyLimit: Number(process.env.AI_MOOD_DAILY_LIMIT) || 48,
   maxTokens: {
     chat: Number(process.env.AI_CHAT_MAX_TOKENS) || 1_024,
     mood: Number(process.env.AI_MOOD_MAX_TOKENS) || 512,

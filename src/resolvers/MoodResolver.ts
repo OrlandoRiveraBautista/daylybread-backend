@@ -30,8 +30,6 @@ import { toSafeAiErrorMessage } from "../misc/ai/errors";
 import { timedAiCall } from "../misc/ai/observability";
 import {
   assertInputWithinLimit,
-  assertWithinDailyLimit,
-  recordAiUsage,
   withAiSlot,
 } from "../misc/ai/rateLimit";
 import { groundVerseText } from "../misc/ai/verseGrounding";
@@ -167,8 +165,6 @@ export class MoodResolver {
         };
       }
 
-      assertWithinDailyLimit(userId, "mood");
-
       const bibleVersion = input.preferredBibleVersion || "NIV";
       const language = input.language || "English";
       const additionalContextText = input.additionalContext
@@ -271,7 +267,6 @@ Guidelines:
       cacheEntry.expiresAt = expirationTime;
 
       await context.em.persistAndFlush(cacheEntry);
-      recordAiUsage(userId, "mood");
 
       try {
         const userSettings = await context.em.findOne(

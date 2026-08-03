@@ -24,8 +24,6 @@ import { toSafeAiErrorMessage } from "../../misc/ai/errors";
 import { timedAiCall } from "../../misc/ai/observability";
 import {
   assertInputWithinLimit,
-  assertWithinDailyLimit,
-  recordAiUsage,
   withAiSlot,
 } from "../../misc/ai/rateLimit";
 import {
@@ -617,7 +615,6 @@ export class SermonAIResolver {
         input.additionalContext,
         input.sermonContent?.substring(0, AI_CONFIG.sermonContentMaxChars),
       );
-      assertWithinDailyLimit(userId, "sermon");
 
       const template = PROMPT_TEMPLATES[input.promptType];
       const messages = buildSermonMessages(
@@ -645,7 +642,6 @@ export class SermonAIResolver {
 
       const responseContent = response.content.toString();
       const uniqueVerses = extractVerseReferences(responseContent);
-      recordAiUsage(userId, "sermon");
 
       return {
         result: {
@@ -895,7 +891,6 @@ export class SermonAIResolver {
         input.additionalContext,
         input.sermonContent?.substring(0, AI_CONFIG.sermonContentMaxChars),
       );
-      assertWithinDailyLimit(userId, "sermon");
 
       const template = PROMPT_TEMPLATES[input.promptType];
       const messages = buildSermonMessages(
@@ -937,7 +932,6 @@ export class SermonAIResolver {
       // Keep [FULL] for clients that reconcile against the complete text.
       await pubsub.publish(streamTopic, `[FULL]${fullContent}`);
       await pubsub.publish(streamTopic, "[DONE]");
-      recordAiUsage(userId, "sermon");
       return true;
     } catch (error) {
       console.error("Error in streamSermonContent:", error);

@@ -47,12 +47,14 @@ export async function runBibleChat(
   }
 
   const deviceId = options.deviceId.trim();
-  const rateLimitKey = options.user
-    ? options.user._id.toString()
-    : `device:${deviceId}`;
+  const isAnonymous = !options.user;
+  const rateLimitKey = `device:${deviceId}`;
 
   assertInputWithinLimit(options.promptText);
-  assertWithinDailyLimit(rateLimitKey, "chat");
+  // Daily quotas only apply to anonymous chat; logged-in users are uncapped here.
+  if (isAnonymous) {
+    assertWithinDailyLimit(rateLimitKey, "chat");
+  }
 
   return withAiSlot(() =>
     timedAiCall(
@@ -61,7 +63,7 @@ export async function runBibleChat(
         userId: options.user?._id.toString(),
         model: AI_CONFIG.model,
         streaming: true,
-        meta: { anonymous: !options.user },
+        meta: { anonymous: isAnonymous },
       },
       async () => {
         const history = new MikroORMChatMessageHistory({
@@ -113,7 +115,9 @@ export async function runBibleChat(
 
         await history.addMessage(new HumanMessage(options.promptText));
         await history.addMessage(new AIMessage(full));
-        recordAiUsage(rateLimitKey, "chat");
+        if (isAnonymous) {
+          recordAiUsage(rateLimitKey, "chat");
+        }
         return full;
       }
     )
