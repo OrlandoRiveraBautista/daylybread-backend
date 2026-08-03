@@ -7,10 +7,10 @@ import {
   Field,
   ObjectType,
 } from "type-graphql";
+import { z } from "zod";
 import { MyContext } from "../types";
 import { FieldError } from "../entities/Errors/FieldError";
 import { ValidateUser } from "../middlewares/userAuth";
-import { ChatOpenAI } from "@langchain/openai";
 import {
   ChatPromptTemplate,
   HumanMessagePromptTemplate,
@@ -24,6 +24,33 @@ import {
   NotificationDeliveryType,
   UserNotificationSettings,
 } from "../entities/Notification";
+import { AI_CONFIG } from "../misc/ai/config";
+import { createChatModel } from "../misc/ai/createChatModel";
+import { toSafeAiErrorMessage } from "../misc/ai/errors";
+import { timedAiCall } from "../misc/ai/observability";
+import {
+  assertInputWithinLimit,
+  assertWithinDailyLimit,
+  recordAiUsage,
+  withAiSlot,
+} from "../misc/ai/rateLimit";
+import { groundVerseText } from "../misc/ai/verseGrounding";
+
+const MoodAiSchema = z.object({
+  bookId: z
+    .string()
+    .describe("USFM-style book id, e.g. JHN, PSA, 1CO"),
+  chapter: z.number().int().positive(),
+  verseStart: z.number().int().positive(),
+  verseEnd: z.number().int().positive().optional(),
+  reference: z
+    .string()
+    .describe("Human-readable reference, e.g. John 3:16"),
+  reflection: z
+    .string()
+    .describe("Personal encouraging reflection in 2-3 sentences"),
+  mood: z.string(),
+});
 
 // Input types
 @InputType()
@@ -81,7 +108,6 @@ export class MoodResolver {
     @Ctx() context: MyContext
   ): Promise<MoodResponse> {
     try {
-      // Validate mood input
       const validMoods = [
         "peaceful",
         "grateful",
@@ -103,28 +129,27 @@ export class MoodResolver {
         };
       }
 
-      // Get user from context and handle authentication
       const req = context.request as any;
-      let user: User | undefined;
-      if (req.userId) {
-        user =
-          (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
-          undefined;
-        if (!user) {
-          return { errors: [{ message: "User not found" }] };
-        }
-      } else {
+      if (!req.userId) {
         return { errors: [{ message: "User authentication required" }] };
       }
 
-      // Clean up expired cache entries for this user
-      await this.cleanupExpiredCache(context, user._id.toString());
+      const user =
+        (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
+        undefined;
+      if (!user) {
+        return { errors: [{ message: "User not found" }] };
+      }
 
-      // Check for existing valid cache entry
+      const userId = user._id.toString();
+      assertInputWithinLimit(input.additionalContext, input.mood);
+
+      await this.cleanupExpiredCache(context, userId);
+
       const moodType = input.mood.toLowerCase() as MoodType;
       const currentTime = new Date();
       const existingCache = await context.em.findOne(MoodCache, {
-        userId: user._id.toString(),
+        userId,
         mood: moodType,
         expiresAt: { $gt: currentTime },
       });
@@ -142,85 +167,63 @@ export class MoodResolver {
         };
       }
 
-      // Create a standalone ChatOpenAI instance for mood responses
-      const chatModel = new ChatOpenAI({
-        temperature: 0.9, // Encourage more variety for verse selection
-        modelName: "gpt-4o-mini",
-        openAIApiKey: process.env.OPENAI_API_KEY,
-      });
+      assertWithinDailyLimit(userId, "mood");
 
-      // Create mood-specific prompt template
-      const moodPrompt = ChatPromptTemplate.fromPromptMessages([
-        SystemMessagePromptTemplate.fromTemplate(
-          `You are BreadCrumbs, a compassionate AI assistant that provides biblical encouragement based on emotions and feelings. 
-
-          Your task is to provide a thoughtful, biblical response for someone feeling {mood}. 
-
-          You must respond with EXACTLY this JSON format (no additional text or formatting):
-          {{
-            "verse": "The complete Bible verse text here",
-            "reference": "Book Chapter:Verse",
-            "reflection": "A personal, encouraging reflection (2-3 sentences) that connects the verse to their current emotional state",
-            "mood": "{mood}"
-          }}
-
-          Guidelines:
-          - Choose a Bible verse that specifically addresses the {mood} emotion
-          - Use the exact wording of the {bibleVersion} translation; do not paraphrase the verse text
-          - Write the entire response (including the reflection) in the {language} language
-          - Use the {bibleVersion} book naming in the reference when applicable
-          - Randomize your selection among multiple relevant options; avoid overused verses
-          - Do NOT repeat the same verse in consecutive requests
-          - The reflection should be personal, warm, and directly speak to someone feeling {mood}
-          - Keep the reflection concise but meaningful (2-3 sentences max)
-          - Ensure the verse and reflection work together harmoniously
-          - The response should feel personalized and encouraging
-          
-          {additionalContext}
-          `
-        ),
-        HumanMessagePromptTemplate.fromTemplate(
-          "I am feeling {mood}. Please provide a Bible verse and encouraging reflection for my current emotional state in the {language} language"
-        ),
-      ]);
-
-      // Prepare context for the prompt
       const bibleVersion = input.preferredBibleVersion || "NIV";
+      const language = input.language || "English";
       const additionalContextText = input.additionalContext
         ? `Additional context to consider: ${input.additionalContext}`
         : "";
 
-      // Generate AI response
-      const response = await moodPrompt.pipe(chatModel).invoke({
-        mood: input.mood,
-        bibleVersion: bibleVersion,
-        additionalContext: additionalContextText,
-        language: input.language,
+      const chatModel = createChatModel({
+        temperature: AI_CONFIG.temperatures.mood,
+        maxTokens: AI_CONFIG.maxTokens.mood,
       });
 
-      // Parse the AI response
-      let aiResponse;
-      try {
-        // Clean the response content and parse JSON
-        const cleanedContent = response.content.toString().trim();
-        // Remove any markdown code block formatting if present
-        const jsonContent = cleanedContent
-          .replace(/```json\n?|\n?```/g, "")
-          .trim();
-        aiResponse = JSON.parse(jsonContent);
-      } catch (parseError) {
-        console.error("Failed to parse AI response:", response.content);
-        return {
-          errors: [
-            {
-              message:
-                "Failed to generate a proper response. Please try again.",
-            },
-          ],
-        };
-      }
+      const structuredModel = chatModel.withStructuredOutput(MoodAiSchema, {
+        name: "mood_verse_response",
+      });
 
-      // Validate the AI response structure (allow verse to be filled from DB)
+      const moodPrompt = ChatPromptTemplate.fromMessages([
+        SystemMessagePromptTemplate.fromTemplate(
+          `You are BreadCrumbs, a compassionate AI assistant that provides biblical encouragement based on emotions and feelings.
+
+Your task is to choose a Bible verse reference (not the verse text) and write a reflection for someone feeling {mood}.
+
+Guidelines:
+- Choose a Bible verse that specifically addresses the {mood} emotion
+- Prefer well-known, accurate canonical references
+- Use USFM-style bookId values (JHN, PSA, ROM, 1CO, etc.)
+- Write the reflection in the {language} language
+- Use {bibleVersion} book naming in the reference when applicable
+- Randomize among relevant options; avoid overused verses when possible
+- The reflection should be personal, warm, and 2-3 sentences
+- Do NOT invent or paraphrase verse text — only return the reference fields and reflection
+
+{additionalContext}`
+        ),
+        HumanMessagePromptTemplate.fromTemplate(
+          "I am feeling {mood}. Provide a Bible verse reference and encouraging reflection in {language}."
+        ),
+      ]);
+
+      const aiResponse = await withAiSlot(() =>
+        timedAiCall(
+          {
+            feature: "mood",
+            userId,
+            model: AI_CONFIG.model,
+          },
+          async () =>
+            moodPrompt.pipe(structuredModel).invoke({
+              mood: input.mood,
+              bibleVersion,
+              additionalContext: additionalContextText,
+              language,
+            })
+        )
+      );
+
       if (!aiResponse.reference || !aiResponse.reflection) {
         return {
           errors: [
@@ -231,7 +234,19 @@ export class MoodResolver {
         };
       }
 
-      if (!aiResponse.verse) {
+      const grounded = await groundVerseText(
+        context.em,
+        {
+          bookId: aiResponse.bookId,
+          chapter: aiResponse.chapter,
+          verseStart: aiResponse.verseStart,
+          verseEnd: aiResponse.verseEnd,
+          reference: aiResponse.reference,
+        },
+        bibleVersion
+      );
+
+      if (!grounded?.verseText) {
         return {
           errors: [
             {
@@ -242,40 +257,36 @@ export class MoodResolver {
         };
       }
 
-      // Cache the new response
       const cacheEntry = new MoodCache();
-      cacheEntry.userId = user._id.toString();
+      cacheEntry.userId = userId;
       cacheEntry.mood = moodType;
-      cacheEntry.verse = aiResponse.verse;
-      cacheEntry.reference = aiResponse.reference;
+      cacheEntry.verse = grounded.verseText;
+      cacheEntry.reference = grounded.reference;
       cacheEntry.reflection = aiResponse.reflection;
       cacheEntry.additionalContext = input.additionalContext;
       cacheEntry.preferredBibleVersion = input.preferredBibleVersion;
 
-      // Set expiration time (30 minutes from now)
       const expirationTime = new Date();
       expirationTime.setMinutes(expirationTime.getMinutes() + 30);
       cacheEntry.expiresAt = expirationTime;
 
       await context.em.persistAndFlush(cacheEntry);
+      recordAiUsage(userId, "mood");
 
-      // Schedule notifications for when cache expires
       try {
-        // Get user's notification settings to determine which notifications to schedule
         const userSettings = await context.em.findOne(
           UserNotificationSettings,
           {
-            userId: user._id.toString(),
+            userId,
           }
         );
 
         const notifications: Notification[] = [];
 
-        // Schedule WebSocket notification if enabled (default: enabled)
         if (!userSettings || userSettings.enableWebSocketNotifications) {
           if (!userSettings || userSettings.enableMoodRequestNotifications) {
             const wsNotification = Notification.createMoodRequestNotification(
-              user._id.toString(),
+              userId,
               input.mood,
               NotificationDeliveryType.WEBSOCKET,
               expirationTime
@@ -284,7 +295,6 @@ export class MoodResolver {
           }
         }
 
-        // Schedule browser push notification if enabled
         if (
           userSettings &&
           userSettings.enableBrowserPushNotifications &&
@@ -292,7 +302,7 @@ export class MoodResolver {
           userSettings.pushSubscriptionEndpoint
         ) {
           const pushNotification = Notification.createMoodRequestNotification(
-            user._id.toString(),
+            userId,
             input.mood,
             NotificationDeliveryType.BROWSER_PUSH,
             expirationTime
@@ -301,14 +311,13 @@ export class MoodResolver {
           notifications.push(pushNotification);
         }
 
-        // Schedule email notification if enabled
         if (
           userSettings &&
           userSettings.enableEmailNotifications &&
           userSettings.enableMoodRequestNotifications
         ) {
           const emailNotification = Notification.createMoodRequestNotification(
-            user._id.toString(),
+            userId,
             input.mood,
             NotificationDeliveryType.EMAIL,
             expirationTime
@@ -319,21 +328,15 @@ export class MoodResolver {
 
         if (notifications.length > 0) {
           await context.em.persistAndFlush(notifications);
-          console.log(
-            `Scheduled ${notifications.length} notifications for mood: ${
-              input.mood
-            }, user: ${user._id.toString()}`
-          );
         }
       } catch (notificationError) {
         console.error("Error scheduling notification:", notificationError);
-        // Don't fail the main request if notification scheduling fails
       }
 
       return {
         result: {
-          verse: aiResponse.verse,
-          reference: aiResponse.reference,
+          verse: grounded.verseText,
+          reference: grounded.reference,
           reflection: aiResponse.reflection,
           mood: input.mood,
           fromCache: false,
@@ -345,7 +348,7 @@ export class MoodResolver {
       return {
         errors: [
           {
-            message: "An unexpected error occurred. Please try again.",
+            message: toSafeAiErrorMessage(error),
           },
         ],
       };
@@ -366,7 +369,6 @@ export class MoodResolver {
     ];
   }
 
-  // Get user's mood history
   @ValidateUser()
   @Query(() => [MoodCache])
   async getUserMoodHistory(@Ctx() context: MyContext): Promise<MoodCache[]> {
@@ -394,7 +396,6 @@ export class MoodResolver {
     }
   }
 
-  // Check when next mood request is allowed
   @ValidateUser()
   @Query(() => Date, { nullable: true })
   async getNextMoodRequestTime(
@@ -428,7 +429,6 @@ export class MoodResolver {
     }
   }
 
-  // Helper method to clean up expired cache entries
   private async cleanupExpiredCache(
     context: MyContext,
     userId: string

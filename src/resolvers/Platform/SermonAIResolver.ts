@@ -16,14 +16,23 @@ import {
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
 import { ValidateUser } from "../../middlewares/userAuth";
-import { ChatOpenAI } from "@langchain/openai";
-import {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
-  SystemMessagePromptTemplate,
-} from "@langchain/core/prompts";
 import { User } from "../../entities/User";
 import { ObjectId } from "@mikro-orm/mongodb";
+import { AI_CONFIG } from "../../misc/ai/config";
+import { createChatModel } from "../../misc/ai/createChatModel";
+import { toSafeAiErrorMessage } from "../../misc/ai/errors";
+import { timedAiCall } from "../../misc/ai/observability";
+import {
+  assertInputWithinLimit,
+  assertWithinDailyLimit,
+  recordAiUsage,
+  withAiSlot,
+} from "../../misc/ai/rateLimit";
+import {
+  buildSermonMessages,
+  extractVerseReferences,
+  isValidAiSessionId,
+} from "../../misc/ai/sermonMessages";
 
 /**
  * Enum for predefined AI assistance categories
@@ -577,7 +586,6 @@ export class SermonAIResolver {
     @Ctx() context: MyContext,
   ): Promise<SermonAIResponse> {
     try {
-      // Validate user authentication
       const req = context.request as any;
       if (!req.userId) {
         return { errors: [{ message: "User authentication required" }] };
@@ -590,7 +598,6 @@ export class SermonAIResolver {
         return { errors: [{ message: "User not found" }] };
       }
 
-      // Validate custom prompt if using CUSTOM type
       if (
         input.promptType === SermonAIPromptType.CUSTOM &&
         !input.customPrompt
@@ -602,64 +609,43 @@ export class SermonAIResolver {
         };
       }
 
-      // Create ChatOpenAI instance
-      const chatModel = new ChatOpenAI({
-        temperature: 0.7,
-        modelName: "gpt-4o-mini",
-        openAIApiKey: process.env.OPENAI_API_KEY,
-      });
+      const userId = user._id.toString();
+      assertInputWithinLimit(
+        input.customPrompt,
+        input.sermonTitle,
+        input.highlightedText,
+        input.additionalContext,
+        input.sermonContent?.substring(0, AI_CONFIG.sermonContentMaxChars),
+      );
+      assertWithinDailyLimit(userId, "sermon");
 
-      // Get the appropriate prompt template
       const template = PROMPT_TEMPLATES[input.promptType];
-
-      // Build the prompt with base instruction prepended
-      const fullSystemPrompt = `${BASE_SYSTEM_INSTRUCTION}\n\n${template.system}`;
-      const prompt = ChatPromptTemplate.fromMessages([
-        SystemMessagePromptTemplate.fromTemplate(fullSystemPrompt),
-        HumanMessagePromptTemplate.fromTemplate(template.human),
-      ]);
-
-      // Prepare context variables
-      let contextText = "";
-      if (input.sermonTitle) {
-        contextText = `Sermon Title: "${input.sermonTitle}"`;
-        if (input.sermonContent) {
-          contextText += `\n\nCurrent sermon content:\n${input.sermonContent.substring(0, 2000)}`;
-        }
-      } else {
-        contextText = input.customPrompt || "General sermon assistance";
-      }
-
-      const highlightedTextSection = input.highlightedText
-        ? `\n\nHighlighted/Selected text to work with:\n${input.highlightedText}`
-        : "";
-
-      const additionalContextSection = input.additionalContext
-        ? `\n\nAdditional context: ${input.additionalContext}`
-        : "";
-
-      const languageInstruction = input.language
-        ? `\n\nCRITICAL: Respond ENTIRELY in ${input.language}. Do not use English or any other language.`
-        : "";
-      
-      const reminderInstruction = input.sermonTitle
-        ? `\n\nREMINDER: All content must directly relate to and support the sermon title "${input.sermonTitle}".`
-        : "";
-
-      // Generate AI response
-      const response = await prompt.pipe(chatModel).invoke({
-        context: contextText,
-        highlightedText: highlightedTextSection,
-        additionalContext: additionalContextSection + languageInstruction + reminderInstruction,
-        customPrompt: input.customPrompt || "",
+      const messages = buildSermonMessages(
+        BASE_SYSTEM_INSTRUCTION,
+        template,
+        input,
+      );
+      const chatModel = createChatModel({
+        temperature: AI_CONFIG.temperatures.sermon,
+        maxTokens: AI_CONFIG.maxTokens.sermon,
       });
+
+      const response = await withAiSlot(() =>
+        timedAiCall(
+          {
+            feature: "sermon",
+            userId,
+            model: AI_CONFIG.model,
+            streaming: false,
+            meta: { promptType: input.promptType },
+          },
+          () => chatModel.invoke(messages),
+        ),
+      );
 
       const responseContent = response.content.toString();
-
-      // Extract any Bible verses mentioned (simple pattern matching)
-      const versePattern = /(\d?\s?[A-Za-z]+\s+\d+:\d+(?:-\d+)?)/g;
-      const verses = responseContent.match(versePattern) || [];
-      const uniqueVerses = [...new Set(verses)];
+      const uniqueVerses = extractVerseReferences(responseContent);
+      recordAiUsage(userId, "sermon");
 
       return {
         result: {
@@ -671,9 +657,7 @@ export class SermonAIResolver {
     } catch (error) {
       console.error("Error in generateSermonContent:", error);
       return {
-        errors: [
-          { message: "An unexpected error occurred. Please try again." },
-        ],
+        errors: [{ message: toSafeAiErrorMessage(error) }],
       };
     }
   }
@@ -863,21 +847,22 @@ export class SermonAIResolver {
     @Ctx() context: MyContext,
     @PubSub() pubsub: PubSubEngine,
   ): Promise<boolean> {
+    const topic = `SERMON_AI_STREAM_${input.sessionId || "invalid"}`;
+
     try {
-      // Validate session ID for streaming
-      if (!input.sessionId) {
+      if (!isValidAiSessionId(input.sessionId)) {
         await pubsub.publish(
-          `SERMON_AI_STREAM_${input.sessionId}`,
-          "[ERROR] Session ID is required for streaming",
+          topic,
+          "[ERROR] A valid session ID is required for streaming",
         );
         return false;
       }
 
-      // Validate user authentication
+      const streamTopic = `SERMON_AI_STREAM_${input.sessionId}`;
       const req = context.request as any;
       if (!req.userId) {
         await pubsub.publish(
-          `SERMON_AI_STREAM_${input.sessionId}`,
+          streamTopic,
           "[ERROR] User authentication required",
         );
         return false;
@@ -887,117 +872,78 @@ export class SermonAIResolver {
         _id: new ObjectId(req.userId),
       });
       if (!user) {
-        await pubsub.publish(
-          `SERMON_AI_STREAM_${input.sessionId}`,
-          "[ERROR] User not found",
-        );
+        await pubsub.publish(streamTopic, "[ERROR] User not found");
         return false;
       }
 
-      // Validate custom prompt if using CUSTOM type
       if (
         input.promptType === SermonAIPromptType.CUSTOM &&
         !input.customPrompt
       ) {
         await pubsub.publish(
-          `SERMON_AI_STREAM_${input.sessionId}`,
+          streamTopic,
           "[ERROR] Custom prompt is required",
         );
         return false;
       }
 
-      // Create ChatOpenAI instance with streaming enabled
-      const chatModel = new ChatOpenAI({
-        temperature: 0.7,
-        modelName: "gpt-4o-mini",
-        openAIApiKey: process.env.OPENAI_API_KEY,
+      const userId = user._id.toString();
+      assertInputWithinLimit(
+        input.customPrompt,
+        input.sermonTitle,
+        input.highlightedText,
+        input.additionalContext,
+        input.sermonContent?.substring(0, AI_CONFIG.sermonContentMaxChars),
+      );
+      assertWithinDailyLimit(userId, "sermon");
+
+      const template = PROMPT_TEMPLATES[input.promptType];
+      const messages = buildSermonMessages(
+        BASE_SYSTEM_INSTRUCTION,
+        template,
+        input,
+      );
+      const chatModel = createChatModel({
+        temperature: AI_CONFIG.temperatures.sermon,
         streaming: true,
+        maxTokens: AI_CONFIG.maxTokens.sermon,
       });
 
-      // Get the appropriate prompt template
-      const template = PROMPT_TEMPLATES[input.promptType];
-
-      // Prepare context variables
-      let contextText = "";
-      if (input.sermonTitle) {
-        contextText = `Sermon Title: "${input.sermonTitle}"`;
-        if (input.sermonContent) {
-          contextText += `\n\nCurrent sermon content:\n${input.sermonContent.substring(0, 2000)}`;
-        }
-      } else {
-        contextText = input.customPrompt || "General sermon assistance";
-      }
-
-      const highlightedTextSection = input.highlightedText
-        ? `\n\nHighlighted/Selected text to work with:\n${input.highlightedText}`
-        : "";
-
-      const additionalContextSection = input.additionalContext
-        ? `\n\nAdditional context: ${input.additionalContext}`
-        : "";
-
-      const languageInstruction = input.language
-        ? `\n\nCRITICAL: Respond ENTIRELY in ${input.language}. Do not use English or any other language.`
-        : "";
-      
-      const reminderInstruction = input.sermonTitle
-        ? `\n\nREMINDER: All content must directly relate to and support the sermon title "${input.sermonTitle}".`
-        : "";
-
-      // Build the full prompt with base instruction prepended
-      const systemPrompt = `${BASE_SYSTEM_INSTRUCTION}\n\n${template.system}`;
-      const humanPrompt = template.human
-        .replace("{context}", contextText)
-        .replace("{highlightedText}", highlightedTextSection)
-        .replace(
-          "{additionalContext}",
-          additionalContextSection + languageInstruction + reminderInstruction,
-        )
-        .replace("{customPrompt}", input.customPrompt || "");
-
-      // Collect full content while streaming
       let fullContent = "";
-
-      // Stream the response and capture the final result
-      const response = await chatModel.invoke(
-        [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: humanPrompt },
-        ],
-        {
-          callbacks: [
-            {
-              async handleLLMNewToken(token: string) {
-                fullContent += token;
-                await pubsub.publish(
-                  `SERMON_AI_STREAM_${input.sessionId}`,
-                  token,
-                );
-              },
-            },
-          ],
-        },
+      await withAiSlot(() =>
+        timedAiCall(
+          {
+            feature: "sermon",
+            userId,
+            model: AI_CONFIG.model,
+            streaming: true,
+            meta: { promptType: input.promptType },
+          },
+          async () => {
+            const stream = await chatModel.stream(messages);
+            for await (const chunk of stream) {
+              const token =
+                typeof chunk.content === "string"
+                  ? chunk.content
+                  : String(chunk.content ?? "");
+              if (!token) continue;
+              fullContent += token;
+              await pubsub.publish(streamTopic, token);
+            }
+          },
+        ),
       );
 
-      // Use the actual response content as the authoritative full text
-      // This ensures we get the complete response even if some tokens were missed during streaming
-      const actualFullContent = response.content.toString();
-
-      // Send the full content for final replacement (ensures nothing is missing)
-      await pubsub.publish(
-        `SERMON_AI_STREAM_${input.sessionId}`,
-        `[FULL]${actualFullContent}`,
-      );
-
-      // Send completion signal
-      await pubsub.publish(`SERMON_AI_STREAM_${input.sessionId}`, "[DONE]");
-
+      // Keep [FULL] for clients that reconcile against the complete text.
+      await pubsub.publish(streamTopic, `[FULL]${fullContent}`);
+      await pubsub.publish(streamTopic, "[DONE]");
+      recordAiUsage(userId, "sermon");
       return true;
     } catch (error) {
       console.error("Error in streamSermonContent:", error);
       await pubsub.publish(
-        `SERMON_AI_STREAM_${input.sessionId}`,
-        "[ERROR] An unexpected error occurred",
+        topic,
+        `[ERROR] ${toSafeAiErrorMessage(error)}`,
       );
       return false;
     }
