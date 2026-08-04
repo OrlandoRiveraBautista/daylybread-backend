@@ -6,79 +6,88 @@ import {
   mapChatMessagesToStoredMessages,
   mapStoredMessagesToChatMessages,
 } from "./utils";
-import { Loaded } from "@mikro-orm/core";
 import { User } from "../entities/User";
 
 export interface MikroORMChatMessageHistoryInput {
   em: MongoEntityManager<MongoDriver>;
   chatId: string;
-  limit: Number;
+  limit: number;
   owner?: User;
+  /** When true, refuse to read/write history owned by a different user. */
+  requireOwnerMatch?: boolean;
 }
 
 /**
- * @example
- * ```typescript
- * const chatHistory = new MikroORMChatMessageHistory({
- *   em: em,
- *   chatId: 'unique-chat-id',
- *   limit: 5
- * });
- * const messages = await chatHistory.getMessages();
- * await chatHistory.clear();
- * ```
+ * Per-chat Mongo message history backed by the AIMessage entity.
  */
 export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
   lc_namespace = ["langchain", "stores", "message", "mikroorm"];
 
   private em: MongoEntityManager<MongoDriver>;
   private chatId: string;
-  private document: Loaded<AIMessage, never> | null;
-  public limit: Number;
+  public limit: number;
   public owner?: User;
+  private requireOwnerMatch: boolean;
 
-  constructor({ em, chatId, limit, owner }: MikroORMChatMessageHistoryInput) {
+  constructor({
+    em,
+    chatId,
+    limit,
+    owner,
+    requireOwnerMatch = false,
+  }: MikroORMChatMessageHistoryInput) {
     super();
     this.em = em;
     this.chatId = chatId;
     this.limit = limit;
     this.owner = owner;
+    this.requireOwnerMatch = requireOwnerMatch;
+  }
+
+  private assertOwnerAccess(docOwnerId?: string | null): void {
+    if (!this.requireOwnerMatch || !this.owner) return;
+    if (docOwnerId && docOwnerId !== this.owner._id.toString()) {
+      throw new Error("Chat history access denied for this user");
+    }
   }
 
   /**
-   * Get the messages from the database
-   * @returns An array of BaseMessage objects
+   * Load only the trailing window of messages via Mongo $slice projection.
    */
   async getMessages(): Promise<BaseMessage[]> {
-    // Get the document from the database
-    this.document = await this.em.findOne(AIMessage, {
-      chatId: this.chatId,
-    });
+    const collection = this.em.getCollection(AIMessage);
+    const raw = await collection.findOne(
+      { chatId: this.chatId },
+      {
+        projection: {
+          messages: { $slice: -this.limit },
+          owner: 1,
+          chatId: 1,
+        },
+      }
+    );
 
-    // Get the messages from the document
-    const messages = this.document?.messages.slice(-this.limit) || [];
+    if (!raw) {
+      return [];
+    }
 
-    // Map the messages to BaseMessage objects
+    const ownerId = raw.owner != null ? String(raw.owner) : null;
+    this.assertOwnerAccess(ownerId);
+
+    const messages = (raw.messages as AIMessage["messages"]) || [];
     return mapStoredMessagesToChatMessages(messages);
   }
 
-  /**
-   * Add a message to the database
-   * @param message - The message to add
-   */
   async addMessage(message: BaseMessage): Promise<void> {
     const readyToStoreMessage = mapChatMessagesToStoredMessages([message]);
     const now = new Date();
 
     try {
-      // Start a transaction
       await this.em.transactional(async (em) => {
-        // Get the ai message from the database
         const aiMessage = await em.findOne(AIMessage, {
           chatId: this.chatId,
         });
 
-        // If the ai message does not exist, create a new one
         if (!aiMessage) {
           const newMessage = em.create(AIMessage, {
             chatId: this.chatId,
@@ -87,29 +96,24 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
             createdAt: now,
             updatedAt: now,
           });
-
-          // Persist and flush the new message
           await em.persistAndFlush(newMessage);
-          // Set the document to the new message
-          this.document = newMessage;
-        } else {
-          // If the ai message exists, update the messages
-          aiMessage.messages = [
-            ...aiMessage.messages,
-            ...readyToStoreMessage,
-          ].slice(-Number(this.limit));
-          aiMessage.updatedAt = now;
-
-          // If the owner is set, update the owner
-          if (this.owner && !aiMessage.owner) {
-            aiMessage.owner = this.owner;
-          }
-
-          // Persist and flush the updated message
-          await em.persistAndFlush(aiMessage);
-          // Set the document to the updated message
-          this.document = aiMessage;
+          return;
         }
+
+        const existingOwnerId = aiMessage.owner?._id?.toString();
+        this.assertOwnerAccess(existingOwnerId);
+
+        aiMessage.messages = [
+          ...aiMessage.messages,
+          ...readyToStoreMessage,
+        ].slice(-this.limit);
+        aiMessage.updatedAt = now;
+
+        if (this.owner && !aiMessage.owner) {
+          aiMessage.owner = this.owner;
+        }
+
+        await em.persistAndFlush(aiMessage);
       });
     } catch (error) {
       console.error("Error adding message:", error);
@@ -119,10 +123,16 @@ export class MikroORMChatMessageHistory extends BaseListChatMessageHistory {
 
   async clear(): Promise<void> {
     try {
+      if (this.requireOwnerMatch && this.owner) {
+        const existing = await this.em.findOne(AIMessage, {
+          chatId: this.chatId,
+        });
+        this.assertOwnerAccess(existing?.owner?._id?.toString());
+      }
+
       await this.em.getCollection(AIMessage).deleteOne({
         chatId: this.chatId,
       });
-      this.document = null;
     } catch (error) {
       console.error("Error clearing messages:", error);
       throw error;

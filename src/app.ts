@@ -13,16 +13,6 @@ import { WebSocketServer } from "ws";
 import { useServer } from "graphql-ws/lib/use/ws";
 import { MikroORM } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
-import { OpenAI, ChatOpenAI } from "@langchain/openai";
-import {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
-  MessagesPlaceholder,
-  SystemMessagePromptTemplate,
-} from "@langchain/core/prompts";
-import { ConversationChain } from "langchain/chains";
-import { BufferWindowMemory } from "langchain/memory";
-import { __prod__ } from "./constants";
 import { NotificationScheduler } from "./services/NotificationScheduler";
 import { registerYoutubeAudioProxyRoutes } from "./routes/youtubeAudioProxy";
 
@@ -67,38 +57,6 @@ class App {
       pubSub, // pubSub instance needs to be added into schema so that graphql knows to look for subscriptions
     });
 
-    // Open AI configuration
-    const openai = new OpenAI({ openAIApiKey: process.env.OPENAI_API_KEY });
-    const chatgpt = new ChatOpenAI({
-      temperature: 0,
-      streaming: true,
-      modelName: "gpt-4o-mini",
-    });
-
-    // Chat prompt template
-    const chatPrompt = ChatPromptTemplate.fromPromptMessages([
-      SystemMessagePromptTemplate.fromTemplate(
-        `You are BreadCrumbs, an AI chat assistant that answers all questions **strictly based on the Bible**. Users can ask general biblical questions or provide a specific verse for contextual discussion. You should always reference scripture in your responses, using the provided Bible version or defaulting to RVR (Spanish) and KJV (English).  
-
-        If a question is not answered in the Bible, you must **clearly state that the Bible does not provide an answer** instead of speculating. Keep your tone **friendly, thoughtful, and engaging**, ensuring that all responses align with biblical teachings.  
-
-        If a user asks something unrelated to the Bible, politely **redirect them back to biblical topics** rather than engaging with off-topic discussions.`
-      ),
-      new MessagesPlaceholder("history"),
-      HumanMessagePromptTemplate.fromTemplate("{input}"),
-    ]);
-
-    // Conversation chain init
-    const chain = new ConversationChain({
-      memory: new BufferWindowMemory({
-        returnMessages: true,
-        memoryKey: "history",
-        k: 5,
-      }),
-      prompt: chatPrompt,
-      llm: chatgpt,
-    });
-
     const wsServer = new WebSocketServer({
       server: this.app.server,
       path: "/graphql",
@@ -134,8 +92,6 @@ class App {
         request,
         reply,
         em: orm.em.fork(), // need to use a fork of em
-        openai: openai,
-        chatgpt: chain,
       }),
     });
 

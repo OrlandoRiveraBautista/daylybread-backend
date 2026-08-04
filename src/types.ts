@@ -1,6 +1,4 @@
 import { EntityManager } from "@mikro-orm/mongodb";
-import { OpenAI } from "@langchain/openai";
-import { ConversationChain } from "langchain/chains";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { InputType, Field, ObjectType } from "type-graphql";
 
@@ -14,8 +12,6 @@ export type MyContext = {
   request: FastifyRequest;
   reply: FastifyReply;
   em: EntityManager;
-  openai: OpenAI;
-  chatgpt: ConversationChain;
 };
 
 /* --- Arguments (Args) Object Input Types --- */
@@ -43,10 +39,6 @@ export class BookmarkResponse {
   /**
    * !Maybe we can build a reusable object type for responses
    */
-  // private objectType: any
-  // constructor(objectType: any) {
-  //   this.objectType = objectType
-  // }
   @Field(() => [FieldError], { nullable: true })
   errors?: FieldError[];
 
@@ -56,13 +48,6 @@ export class BookmarkResponse {
 
 @ObjectType()
 export class GetBookmarkResponse {
-  /**
-   * !Maybe we can build a reusable object type for responses
-   */
-  // private objectType: any
-  // constructor(objectType: any) {
-  //   this.objectType = objectType
-  // }
   @Field(() => [FieldError], { nullable: true })
   errors?: FieldError[];
 
