@@ -15,6 +15,7 @@ import { MikroORM } from "@mikro-orm/core";
 import { MongoDriver } from "@mikro-orm/mongodb";
 import { NotificationScheduler } from "./services/NotificationScheduler";
 import { registerYoutubeAudioProxyRoutes } from "./routes/youtubeAudioProxy";
+import { buildWsContext } from "./misc/wsContext";
 
 /** App class */
 class App {
@@ -65,6 +66,7 @@ class App {
     const serverCleanup = useServer(
       {
         schema: graphqlSchema,
+        context: async (ctx) => buildWsContext(ctx, orm.em.fork()),
       },
       wsServer
     );

@@ -14,7 +14,7 @@ import {
 import { PubSubEngine } from "graphql-subscriptions";
 import { MyContext } from "../types";
 import { FieldError } from "../entities/Errors/FieldError";
-import { ValidateUser, RequireAuth } from "../middlewares/userAuth";
+import { ValidateUser, RequireAuth, getContextUserId } from "../middlewares/userAuth";
 import {
   Notification,
   UserNotificationSettings,
@@ -142,7 +142,17 @@ export class NotificationResolver {
 
   // WebSocket subscription for real-time mood notifications
   @Subscription(() => MoodNotificationMessage, {
-    topics: ({ args }) => `MOOD_REQUEST_AVAILABLE_${args.userId}`,
+    topics: ({ args, context }) => {
+      const authedUserId = getContextUserId(context as MyContext);
+      if (!authedUserId || authedUserId !== String(args.userId)) {
+        throw new Error("Authentication required to subscribe to mood notifications.");
+      }
+      return `MOOD_REQUEST_AVAILABLE_${args.userId}`;
+    },
+    filter: ({ args, context }) => {
+      const authedUserId = getContextUserId(context as MyContext);
+      return Boolean(authedUserId && authedUserId === String(args.userId));
+    },
   })
   moodRequestAvailable(
     @Root() notification: MoodNotificationMessage,

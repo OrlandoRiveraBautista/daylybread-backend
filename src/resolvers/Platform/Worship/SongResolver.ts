@@ -12,12 +12,16 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser, RequireAuth } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
 import { omitUndefined } from "../../../utility";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import path from "path";
 import puppeteer from "puppeteer";
+import {
+  assertPublicHostname,
+  parseAllowedChordUrl,
+} from "../../../utils/safeChordUrl";
 
 @ObjectType()
 class FetchChordsResponse {
@@ -141,15 +145,8 @@ function extractFromHtml(
       });
     }
 
-  } else {
-    // Generic: pick the largest <pre> block on the page
-    $("pre").each((_i, el) => {
-      const text = $(el).text().trim();
-      if (text.length > rawText.length) rawText = text;
-    });
-    title = $("h1").first().text().trim();
-    artist = $("h2").first().text().trim();
   }
+  // Unknown hosts are rejected before fetch (allowlist in safeChordUrl).
 
   return {
     rawText: rawText.trim() || undefined,
@@ -225,23 +222,33 @@ async function fetchChordsWithBrowser(
 
 @Resolver()
 export class SongResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => FetchChordsResponse)
   async fetchChordsFromUrl(
     @Arg("url") url: string
   ): Promise<FetchChordsResponse> {
-    // Validate URL before doing anything
-    let hostname: string;
+    const parsed = parseAllowedChordUrl(url);
+    if (!parsed.ok) {
+      return { errors: [{ field: "url", message: parsed.message }] };
+    }
+
+    const { url: safeUrl, hostname } = parsed;
+
     try {
-      hostname = new URL(url).hostname.replace("www.", "");
-    } catch {
-      return { errors: [{ field: "url", message: "Invalid URL. Please enter a valid link." }] };
+      await assertPublicHostname(hostname);
+    } catch (err: unknown) {
+      return {
+        errors: [{
+          field: "url",
+          message: err instanceof Error ? err.message : "URL target is not allowed.",
+        }],
+      };
     }
 
     // ── Step 1: fast cheerio path (skipped for bot-blocked hosts) ──
     if (!hostNeedsBrowser(hostname)) {
       try {
-        const response = await axios.get(url, {
+        const response = await axios.get(safeUrl, {
           headers: {
             "User-Agent": BROWSER_USER_AGENT,
             "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
@@ -249,6 +256,19 @@ export class SongResolver {
             Referer: "https://www.google.com/",
           },
           timeout: 12000,
+          maxRedirects: 3,
+          // beforeRedirect is sync in axios — re-check allowlist on each hop.
+          beforeRedirect: (options) => {
+            const next =
+              typeof (options as { href?: string }).href === "string"
+                ? (options as { href: string }).href
+                : typeof options.url === "string"
+                  ? options.url
+                  : "";
+            if (!next) throw new Error("Redirect without URL is not allowed.");
+            const redirected = parseAllowedChordUrl(next);
+            if (!redirected.ok) throw new Error(redirected.message);
+          },
           validateStatus: (status) => status < 500,
         });
         if (response.status >= 400) {
@@ -256,14 +276,19 @@ export class SongResolver {
         }
         const result = extractFromHtml(response.data, hostname);
         if (result.rawText) return result;
-      } catch {
-        // fall through to Puppeteer
+      } catch (err) {
+        // Allowlisted host but blocked/empty — fall through to Puppeteer.
+        // Do not fall through on allowlist/SSRF failures from redirects.
+        const msg = err instanceof Error ? err.message : "";
+        if (/not allowed|not supported|Only HTTPS|credentials/i.test(msg)) {
+          return { errors: [{ field: "url", message: msg }] };
+        }
       }
     }
 
-    // ── Step 2: Puppeteer (required for CifraClub / UG; fallback elsewhere) ──
+    // ── Step 2: Puppeteer (required for CifraClub / UG; fallback for allowlisted hosts) ──
     try {
-      const result = await fetchChordsWithBrowser(url, hostname);
+      const result = await fetchChordsWithBrowser(safeUrl, hostname);
       if (result.rawText) return result;
 
       return {

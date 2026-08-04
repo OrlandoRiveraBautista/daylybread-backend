@@ -271,10 +271,40 @@ type FilesetLike = {
   type?: string;
   set_type_code?: string;
   setTypeCode?: string;
+  size?: string;
+  set_size_code?: string;
+  setSizeCode?: string;
 };
 
-function pickTextFilesetId(filesets: unknown): string | null {
-  if (!filesets) return null;
+type TextFilesetIds = {
+  /** Preferred fileset for OT books */
+  ot?: string;
+  /** Preferred fileset for NT books */
+  nt?: string;
+  /** Any leftover text filesets to try as fallback */
+  other: string[];
+};
+
+/** Short display aliases → common DBP bible abbreviations. */
+const BIBLE_ABBR_ALIASES: Record<string, string[]> = {
+  NTV: ["SPANTV"],
+  NVI: ["SPANVI"],
+  RVR: ["SPARVC", "SPNR02"],
+  RV: ["SPARVC"],
+};
+
+const NT_BOOK_IDS = new Set([
+  "MAT", "MRK", "LUK", "JHN", "ACT", "ROM", "1CO", "2CO", "GAL", "EPH", "PHP",
+  "COL", "1TH", "2TH", "1TI", "2TI", "TIT", "PHM", "HEB", "JAS", "1PE", "2PE",
+  "1JN", "2JN", "3JN", "JUD", "REV",
+]);
+
+function isNewTestamentBook(bookId: string): boolean {
+  return NT_BOOK_IDS.has(bookId.toUpperCase());
+}
+
+function collectFilesetCandidates(filesets: unknown): FilesetLike[] {
+  if (!filesets) return [];
 
   const candidates: FilesetLike[] = [];
 
@@ -287,54 +317,171 @@ function pickTextFilesetId(filesets: unknown): string | null {
       } else if (value && typeof value === "object") {
         candidates.push(value as FilesetLike);
       } else if (typeof value === "string" && /text/i.test(value)) {
-        return value;
+        candidates.push({ id: value, type: "text_plain" });
       }
     }
   }
 
-  const textPlain = candidates.find((f) => {
-    const type = (f.type || f.set_type_code || f.setTypeCode || "").toLowerCase();
-    return type.includes("text_plain") || type === "text";
-  });
-  if (textPlain?.id) return textPlain.id;
-
-  const anyText = candidates.find((f) => {
-    const type = (f.type || f.set_type_code || f.setTypeCode || "").toLowerCase();
-    return type.includes("text");
-  });
-  return anyText?.id || null;
+  return candidates;
 }
 
-async function resolveTextFilesetId(bibleVersion: string): Promise<string | null> {
+function filesetType(f: FilesetLike): string {
+  return (f.type || f.set_type_code || f.setTypeCode || "").toLowerCase();
+}
+
+function filesetSize(f: FilesetLike): string {
+  return (f.size || f.set_size_code || f.setSizeCode || "").toUpperCase();
+}
+
+function isPlainTextFileset(f: FilesetLike): boolean {
+  const type = filesetType(f);
+  return Boolean(f.id) && (type.includes("text_plain") || type === "text");
+}
+
+function isAnyTextFileset(f: FilesetLike): boolean {
+  return Boolean(f.id) && filesetType(f).includes("text");
+}
+
+/** Split OT/NT plain-text filesets — DBP often ships separate filesets per testament. */
+function pickTextFilesetIds(filesets: unknown): TextFilesetIds {
+  const candidates = collectFilesetCandidates(filesets);
+  const plain = candidates.filter(isPlainTextFileset);
+  const pool = plain.length ? plain : candidates.filter(isAnyTextFileset);
+
+  const ot = pool.find((f) => filesetSize(f) === "OT")?.id;
+  const nt = pool.find((f) => filesetSize(f) === "NT")?.id;
+
+  // Full-bible / unknown size filesets
+  const other = pool
+    .map((f) => f.id!)
+    .filter((id) => id !== ot && id !== nt);
+
+  // If size metadata is missing, treat first plain text as both.
+  if (!ot && !nt && pool[0]?.id) {
+    return { ot: pool[0].id, nt: pool[0].id, other: pool.slice(1).map((f) => f.id!) };
+  }
+
+  return { ot, nt, other };
+}
+
+function bibleSearchTerms(bibleVersion: string): string[] {
   const abbr = bibleVersion.trim().toUpperCase();
-  const cacheKey = `ai:fileset:${abbr}`;
+  if (!abbr) return [];
+  const aliases = BIBLE_ABBR_ALIASES[abbr] || [];
+  // Prefer exact/full abbrs first, then short alias search.
+  return [...new Set([abbr, ...aliases])];
+}
 
-  return bibleBrainCache.getOrSet(cacheKey, 24 * 60 * 60 * 1000, async () => {
-    const service = getBibleBrainService();
-    const search = await service.searchAvailableBibles(abbr, 1);
-    const match =
-      (search.data || []).find(
-        (b) => (b.abbr || "").toUpperCase() === abbr
-      ) || (search.data || [])[0];
+async function resolveBibleAbbr(bibleVersion: string): Promise<string | null> {
+  const terms = bibleSearchTerms(bibleVersion);
+  const service = getBibleBrainService();
 
-    if (!match?.abbr) return null;
-
-    // Prefer detail endpoint for full fileset metadata.
+  for (const term of terms) {
+    // Direct detail lookup when we already have a DBP abbr (e.g. SPANTV).
     try {
-      const detail = await bibleBrainGet<Record<string, unknown>>(
-        `/api/bibles/${encodeURIComponent(match.abbr)}`
+      const detail = await bibleBrainGet<{ data?: { abbr?: string } }>(
+        `/api/bibles/${encodeURIComponent(term)}`
       );
-      const fromDetail = pickTextFilesetId(
-        (detail as { data?: { filesets?: unknown } }).data?.filesets ??
-          (detail as { filesets?: unknown }).filesets
-      );
-      if (fromDetail) return fromDetail;
+      const direct = detail?.data?.abbr || (detail as { abbr?: string }).abbr;
+      if (direct) return String(direct).toUpperCase();
     } catch {
-      // fall through to list payload filesets
+      // not a direct abbr — try search
     }
 
-    return pickTextFilesetId(match.filesets);
+    const search = await service.searchAvailableBibles(term, 1);
+    const match =
+      (search.data || []).find(
+        (b) => (b.abbr || "").toUpperCase() === term
+      ) ||
+      (search.data || []).find((b) =>
+        (b.abbr || "").toUpperCase().endsWith(term)
+      ) ||
+      (search.data || [])[0];
+
+    if (match?.abbr) return match.abbr.toUpperCase();
+  }
+
+  return null;
+}
+
+async function resolveTextFilesets(
+  bibleVersion: string
+): Promise<TextFilesetIds | null> {
+  const abbr = bibleVersion.trim().toUpperCase();
+  const cacheKey = `ai:filesets:${abbr}`;
+
+  return bibleBrainCache.getOrSet(cacheKey, 24 * 60 * 60 * 1000, async () => {
+    const resolvedAbbr = await resolveBibleAbbr(bibleVersion);
+    if (!resolvedAbbr) return null;
+
+    try {
+      const detail = await bibleBrainGet<Record<string, unknown>>(
+        `/api/bibles/${encodeURIComponent(resolvedAbbr)}`
+      );
+      const filesets =
+        (detail as { data?: { filesets?: unknown } }).data?.filesets ??
+        (detail as { filesets?: unknown }).filesets;
+      const picked = pickTextFilesetIds(filesets);
+      if (picked.ot || picked.nt || picked.other.length) return picked;
+    } catch {
+      // fall through
+    }
+
+    const service = getBibleBrainService();
+    const search = await service.searchAvailableBibles(resolvedAbbr, 1);
+    const match =
+      (search.data || []).find(
+        (b) => (b.abbr || "").toUpperCase() === resolvedAbbr
+      ) || (search.data || [])[0];
+    if (!match) return null;
+    return pickTextFilesetIds(match.filesets);
   });
+}
+
+function filesetCandidatesForBook(
+  filesets: TextFilesetIds,
+  bookId: string
+): string[] {
+  const preferNt = isNewTestamentBook(bookId);
+  const primary = preferNt ? filesets.nt : filesets.ot;
+  const secondary = preferNt ? filesets.ot : filesets.nt;
+  return [
+    ...new Set(
+      [primary, secondary, ...filesets.other].filter(
+        (id): id is string => Boolean(id)
+      )
+    ),
+  ];
+}
+
+function localVerseMatchesVersion(
+  verse: Verse,
+  bibleVersion: string
+): boolean {
+  const version = bibleVersion.trim().toLowerCase();
+  if (!version) return true;
+
+  const abbr =
+    (verse.translation as { abbreviation?: string } | undefined)?.abbreviation
+      ?.toLowerCase() || "";
+  const bibleId = (verse.bibleId || "").toLowerCase();
+  const needles = new Set<string>([version]);
+
+  // SPANTV ↔ ntv / spa
+  if (version.length > 3) {
+    needles.add(version.slice(-3));
+    needles.add(version.slice(0, 3));
+  }
+  for (const alias of BIBLE_ABBR_ALIASES[version.toUpperCase()] || []) {
+    needles.add(alias.toLowerCase());
+  }
+
+  for (const needle of needles) {
+    if (!needle) continue;
+    if (abbr === needle || abbr.includes(needle)) return true;
+    if (bibleId.includes(needle)) return true;
+  }
+  return false;
 }
 
 async function fetchFromLocal(
@@ -342,28 +489,24 @@ async function fetchFromLocal(
   parsed: ParsedVerseRef,
   bibleVersion: string
 ): Promise<GroundedVerse | null> {
+  // Filter by book up front — chapter+verse alone can miss the target within limit:25.
   const candidates = await em.find(
     Verse,
     {
+      bookName: parsed.bookName,
       chapterNumber: String(parsed.chapter),
       verse: String(parsed.verseStart),
-    },
+    } as any,
     { limit: 25 }
   );
 
-  const version = bibleVersion.toLowerCase();
-  const match =
-    candidates.find(
-      (v) =>
-        v.bookName?.toLowerCase() === parsed.bookName.toLowerCase() &&
-        (v.bibleId?.toLowerCase().includes(version) ||
-          (v.translation as { abbreviation?: string } | undefined)?.abbreviation
-            ?.toLowerCase()
-            .includes(version))
-    ) ||
-    candidates.find(
-      (v) => v.bookName?.toLowerCase() === parsed.bookName.toLowerCase()
-    );
+  if (!candidates.length) return null;
+
+  // Only accept a local hit for the requested version. Wrong-translation
+  // fallbacks hide BibleBrain (e.g. serving KJV when the user asked for NTV).
+  const match = candidates.find(
+    (v) => Boolean(v.text) && localVerseMatchesVersion(v, bibleVersion)
+  );
 
   if (!match?.text) return null;
 
@@ -378,38 +521,48 @@ async function fetchFromBibleBrain(
   parsed: ParsedVerseRef,
   bibleVersion: string
 ): Promise<GroundedVerse | null> {
-  const filesetId = await resolveTextFilesetId(bibleVersion);
-  if (!filesetId) return null;
+  const filesets = await resolveTextFilesets(bibleVersion);
+  if (!filesets) return null;
 
   const service = getBibleBrainService();
-  const chapter = await service.getAvailableVerse(
-    filesetId,
-    parsed.bookId,
-    parsed.chapter
-  );
-
-  const verses = chapter.data || [];
+  const candidates = filesetCandidatesForBook(filesets, parsed.bookId);
   const end = parsed.verseEnd || parsed.verseStart;
-  const matched = verses.filter((v) => {
-    const start = v.verseStart ?? 0;
-    return start >= parsed.verseStart && start <= end;
-  });
 
-  if (!matched.length) return null;
+  for (const filesetId of candidates) {
+    try {
+      const chapter = await service.getAvailableVerse(
+        filesetId,
+        parsed.bookId,
+        parsed.chapter
+      );
 
-  const verseText = matched
-    .map((v) => (v.verseText || "").trim())
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+      const verses = chapter.data || [];
+      const matched = verses.filter((v) => {
+        const start = v.verseStart ?? 0;
+        return start >= parsed.verseStart && start <= end;
+      });
 
-  if (!verseText) return null;
+      if (!matched.length) continue;
 
-  return {
-    ...parsed,
-    verseText,
-    source: "biblebrain",
-  };
+      const verseText = matched
+        .map((v) => (v.verseText || "").trim())
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      if (!verseText) continue;
+
+      return {
+        ...parsed,
+        verseText,
+        source: "biblebrain",
+      };
+    } catch {
+      // Wrong testament fileset (404) — try next candidate.
+    }
+  }
+
+  return null;
 }
 
 /**
