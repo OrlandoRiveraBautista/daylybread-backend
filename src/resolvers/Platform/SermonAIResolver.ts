@@ -15,7 +15,7 @@ import {
 } from "type-graphql";
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { RequireAuth } from "../../middlewares/userAuth";
+import { RequireAuth, getContextUserId } from "../../middlewares/userAuth";
 import { User } from "../../entities/User";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { AI_CONFIG } from "../../misc/ai/config";
@@ -31,6 +31,12 @@ import {
   extractVerseReferences,
   isValidAiSessionId,
 } from "../../misc/ai/sermonMessages";
+import {
+  claimStreamChannelIfAvailable,
+  isStreamChannelOwner,
+  releaseStreamChannel,
+  sermonChannelKey,
+} from "../../misc/ai/streamSessionOwnership";
 
 /**
  * Enum for predefined AI assistance categories
@@ -820,7 +826,25 @@ export class SermonAIResolver {
    * Subscription for streaming sermon AI content tokens
    */
   @Subscription(() => String, {
-    topics: ({ args }) => `SERMON_AI_STREAM_${args.sessionId}`,
+    topics: ({ args, context }) => {
+      const userId = getContextUserId(context as MyContext);
+      if (!userId) {
+        throw new Error("Authentication required to subscribe to sermon AI streams.");
+      }
+      if (!isValidAiSessionId(args.sessionId)) {
+        throw new Error("Invalid session ID.");
+      }
+      const channel = sermonChannelKey(args.sessionId);
+      if (!claimStreamChannelIfAvailable(channel, userId)) {
+        throw new Error("This sermon stream session is already in use.");
+      }
+      return `SERMON_AI_STREAM_${args.sessionId}`;
+    },
+    filter: ({ args, context }) => {
+      const userId = getContextUserId(context as MyContext);
+      if (!userId || !isValidAiSessionId(args.sessionId)) return false;
+      return isStreamChannelOwner(sermonChannelKey(args.sessionId), userId);
+    },
   })
   sermonAIStream(
     @Root() token: string,
@@ -860,6 +884,16 @@ export class SermonAIResolver {
         return false;
       }
 
+      const userId = user._id.toString();
+      const channel = sermonChannelKey(input.sessionId!);
+      if (!claimStreamChannelIfAvailable(channel, userId)) {
+        await pubsub.publish(
+          streamTopic,
+          "[ERROR] This sermon stream session is already in use",
+        );
+        return false;
+      }
+
       if (
         input.promptType === SermonAIPromptType.CUSTOM &&
         !input.customPrompt
@@ -868,10 +902,10 @@ export class SermonAIResolver {
           streamTopic,
           "[ERROR] Custom prompt is required",
         );
+        releaseStreamChannel(channel);
         return false;
       }
 
-      const userId = user._id.toString();
       assertInputWithinLimit(
         input.customPrompt,
         input.sermonTitle,
@@ -920,9 +954,14 @@ export class SermonAIResolver {
       // Keep [FULL] for clients that reconcile against the complete text.
       await pubsub.publish(streamTopic, `[FULL]${fullContent}`);
       await pubsub.publish(streamTopic, "[DONE]");
+      // Delay release so in-flight subscription filters still accept FULL/DONE.
+      setTimeout(() => releaseStreamChannel(channel), 2000);
       return true;
     } catch (error) {
       console.error("Error in streamSermonContent:", error);
+      if (input.sessionId && isValidAiSessionId(input.sessionId)) {
+        releaseStreamChannel(sermonChannelKey(input.sessionId));
+      }
       await pubsub.publish(
         topic,
         `[ERROR] ${toSafeAiErrorMessage(error)}`,

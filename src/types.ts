@@ -1,5 +1,5 @@
 import { EntityManager } from "@mikro-orm/mongodb";
-import { FastifyReply, FastifyRequest } from "fastify";
+import { FastifyRequest } from "fastify";
 import { InputType, Field, ObjectType } from "type-graphql";
 
 /* Entities */
@@ -8,10 +8,27 @@ import { User } from "./entities/User";
 import { Bookmark } from "./entities/Bookmark";
 import { GraphQLScalarType, Kind } from "graphql";
 
+/** Minimal request shape shared by HTTP (Fastify) and GraphQL WS contexts. */
+export type AuthRequest = {
+  userId?: string;
+  cookies?: Record<string, string | undefined>;
+  headers?: Record<string, string | string[] | undefined>;
+};
+
+/** Cookie helpers used by HTTP auth middleware and no-op WS shims. */
+export type CookieReply = {
+  cookie: (...args: any[]) => any;
+  clearCookie: (...args: any[]) => any;
+};
+
 export type MyContext = {
-  request: FastifyRequest;
-  reply: FastifyReply;
+  request: FastifyRequest | AuthRequest;
+  reply: CookieReply;
   em: EntityManager;
+  /** Authenticated user id (set for WS; HTTP uses request.userId via middleware). */
+  userId?: string;
+  /** Device channel claimed via WS connectionParams (anonymous chat). */
+  deviceId?: string;
 };
 
 /* --- Arguments (Args) Object Input Types --- */
