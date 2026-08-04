@@ -9,7 +9,7 @@ import {
   ObjectType,
 } from "type-graphql";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { ValidateUser } from "../../middlewares/userAuth";
+import { RequireAuth } from "../../middlewares/userAuth";
 import { User } from "../../entities/User";
 import { BibleHistory, History } from "../../entities/Bible/BibleHistory";
 
@@ -39,7 +39,7 @@ class HistoryResponse {
 
 @Resolver()
 export class HistoryResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => HistoryResponse)
   async setUserHistory(
     @Arg("options", () => HistoryOptions) options: HistoryOptions,
@@ -51,19 +51,6 @@ export class HistoryResolver {
     let user; // user to be set later
 
     // check to see if the header was set from the middleware
-    if (!req.userId) {
-      const error: HistoryResponse = {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-
-      return error;
-    }
-
     // find the user
     user = await em.findOne(User, { _id: req.userId });
 

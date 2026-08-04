@@ -13,7 +13,8 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
+import { omitUndefined } from "../../../utility";
 
 @ObjectType()
 class WorshipTeamResponse {
@@ -35,23 +36,12 @@ class WorshipTeamsResponse {
 
 @Resolver()
 export class WorshipTeamResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => WorshipTeamsResponse)
   async getWorshipTeams(
     @Ctx() { em, request }: MyContext
   ): Promise<WorshipTeamsResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     // Find teams the user is a member of
     const memberships = await em.find(TeamMember, { user: req.userId });
@@ -72,24 +62,13 @@ export class WorshipTeamResolver {
     return { results: teams };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => WorshipTeamResponse)
   async getWorshipTeam(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<WorshipTeamResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const team = await em.findOne(
       WorshipTeam,
@@ -128,24 +107,13 @@ export class WorshipTeamResolver {
     return { results: team };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => WorshipTeamResponse)
   async createWorshipTeam(
     @Arg("options", () => WorshipTeamInput) options: WorshipTeamInput,
     @Ctx() { em, request }: MyContext
   ): Promise<WorshipTeamResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -183,7 +151,7 @@ export class WorshipTeamResolver {
     return { results: team };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => WorshipTeamResponse)
   async updateWorshipTeam(
     @Arg("id") id: string,
@@ -191,17 +159,6 @@ export class WorshipTeamResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<WorshipTeamResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const team = await em.findOne(WorshipTeam, { _id: new ObjectId(id) }, { populate: ["author"] });
 
@@ -228,10 +185,13 @@ export class WorshipTeamResolver {
     }
 
     try {
-      em.assign(team, {
-        name: options.name,
-        description: options.description,
-      });
+      em.assign(
+        team,
+        omitUndefined({
+          name: options.name,
+          description: options.description,
+        })
+      );
       await em.persistAndFlush(team);
       await em.populate(team, ["author", "members", "members.user"]);
     } catch (err) {
@@ -249,24 +209,13 @@ export class WorshipTeamResolver {
     return { results: team };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => WorshipTeamResponse)
   async deleteWorshipTeam(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<WorshipTeamResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const team = await em.findOne(WorshipTeam, { _id: new ObjectId(id) }, { populate: ["author"] });
 

@@ -5,7 +5,6 @@ import dotenv from "dotenv";
 import mikroOrmConfig from "./mikro-orm.config";
 
 /* Resolvers */
-import { ExampleResolver } from "./resolvers/example";
 import { TranslationResolver } from "./resolvers/Bible/TranslationResolver";
 import { BookResolver } from "./resolvers/Bible/BookResolver";
 import { ChapterResolver } from "./resolvers/Bible/ChapterResolver";
@@ -47,7 +46,6 @@ const server = async () => {
     port: process.env.PORT ? Number.parseInt(process.env.PORT) : 5001,
     mikroOrmConfig: mikroOrmConfig,
     resolvers: [
-      ExampleResolver,
       AuthResolver,
       LanguagesResolver,
       BiblesResolver,

@@ -6,69 +6,89 @@ import { createMethodDecorator } from "type-graphql";
 import { addTime } from "../utility";
 
 /**
- * Function validates users by looking at the access token or refresh token
+ * Hydrate `request.userId` from access/refresh cookies when present.
+ * Does not reject unauthenticated requests.
+ */
+async function hydrateUser(context: MyContext): Promise<void> {
+  const request = context.request as any;
+  const cookies = request.cookies;
+  const accessToken = cookies["access-token"];
+  const refreshToken = cookies["refresh-token"];
+
+  if (!refreshToken && !accessToken) return;
+
+  try {
+    const decodedAccessToken = verify(
+      accessToken,
+      process.env.ACCESS_TOKEN_SECRET!
+    ) as any;
+    request.userId = decodedAccessToken.userId;
+    return;
+  } catch {
+    // fall through to refresh token
+  }
+
+  if (!refreshToken) return;
+
+  let decodedRefreshToken: any;
+  try {
+    decodedRefreshToken = verify(
+      refreshToken,
+      process.env.REFRESH_TOKEN_SECRET!
+    ) as any;
+  } catch {
+    return;
+  }
+
+  const user = await context.em.findOne(User, {
+    _id: decodedRefreshToken.userId,
+  });
+
+  if (!user || user.count !== decodedRefreshToken.count) return;
+
+  const tokens = createTokens(user);
+
+  context.reply.cookie("refresh-token", tokens.refreshToken, {
+    expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }),
+    sameSite: "none",
+    secure: true,
+  });
+
+  context.reply.cookie("access-token", tokens.accessToken, {
+    expires: addTime({ date: new Date(), typeOfTime: "minutes", time: 15 }),
+    sameSite: "none",
+    secure: true,
+  });
+
+  request.userId = user._id;
+}
+
+/**
+ * Soft auth: attach `request.userId` when cookies are valid.
+ * Continues even when the user is not authenticated.
  */
 export const ValidateUser = () => {
   return createMethodDecorator(
     async ({ context }: { context: MyContext }, next) => {
-      const request = context.request as any; // set request as any use freely
+      await hydrateUser(context);
+      return next();
+    }
+  );
+};
 
-      const cookies = request.cookies; // get the cookie from request
-      const accessToken = cookies["access-token"]; // get access token
-      const refreshToken = cookies["refresh-token"]; // get refresh token
+/**
+ * Hard auth: hydrate session, then reject if unauthenticated.
+ * Use on resolvers that require a logged-in user.
+ */
+export const RequireAuth = () => {
+  return createMethodDecorator(
+    async ({ context }: { context: MyContext }, next) => {
+      await hydrateUser(context);
 
-      //check for tokens
-      if (!refreshToken && !accessToken) return next();
-
-      // try to deconde the access token
-      try {
-        const decodedAccessToken = verify(
-          accessToken,
-          process.env.ACCESS_TOKEN_SECRET!
-        ) as any;
-        // get user id
-        const userId = decodedAccessToken.userId;
-        // set user id to the request
-        request.userId = userId;
-        return next();
-      } catch {}
-
-      if (!refreshToken) return next();
-
-      let decodedRefreshToken;
-      // try to decode the refresh token
-      try {
-        decodedRefreshToken = verify(
-          refreshToken,
-          process.env.REFRESH_TOKEN_SECRET!
-        ) as any;
-      } catch {
-        return next();
+      const request = context.request as any;
+      if (!request.userId) {
+        throw new Error("Authentication required. Please login first.");
       }
-
-      const user = await context.em.findOne(User, {
-        _id: decodedRefreshToken.userId,
-      });
-
-      // check if token has been invalidated
-      if (!user || user.count !== decodedRefreshToken.count) return next();
-
-      const tokens = createTokens(user);
-
-      context.reply.cookie("refresh-token", tokens.refreshToken, {
-        expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
-        sameSite: "none",
-        secure: true,
-      });
-
-      context.reply.cookie("access-token", tokens.accessToken, {
-        expires: addTime({ date: new Date(), typeOfTime: "minutes", time: 15 }), //expires in 15mins
-        sameSite: "none",
-        secure: true,
-      });
-
-      // set user id to the request
-      request.userId = user._id;
 
       return next();
     }

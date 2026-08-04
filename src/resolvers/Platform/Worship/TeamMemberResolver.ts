@@ -13,7 +13,7 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
 
 @ObjectType()
 class TeamMemberResponse {
@@ -35,24 +35,13 @@ class TeamMembersResponse {
 
 @Resolver()
 export class TeamMemberResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => TeamMembersResponse)
   async getTeamMembers(
     @Arg("teamId") teamId: string,
     @Ctx() { em, request }: MyContext
   ): Promise<TeamMembersResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     // Verify user is the team author or a member
     const team = await em.findOne(WorshipTeam, { _id: new ObjectId(teamId) }, { populate: ["author"] });
@@ -83,24 +72,13 @@ export class TeamMemberResolver {
     return { results: members };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamMemberResponse)
   async addTeamMember(
     @Arg("options", () => TeamMemberInput) options: TeamMemberInput,
     @Ctx() { em, request }: MyContext
   ): Promise<TeamMemberResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const team = await em.findOne(WorshipTeam, { _id: new ObjectId(options.teamId) }, { populate: ["author"] });
     if (!team) {
@@ -154,7 +132,7 @@ export class TeamMemberResolver {
     return { results: member };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamMemberResponse)
   async updateTeamMember(
     @Arg("id") id: string,
@@ -162,17 +140,6 @@ export class TeamMemberResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<TeamMemberResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const member = await em.findOne(TeamMember, { _id: new ObjectId(id) }, { populate: ["team", "team.author"] });
 
@@ -206,24 +173,13 @@ export class TeamMemberResolver {
     return { results: member };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamMemberResponse)
   async removeTeamMember(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<TeamMemberResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const member = await em.findOne(TeamMember, { _id: new ObjectId(id) }, { populate: ["team", "team.author"] });
 

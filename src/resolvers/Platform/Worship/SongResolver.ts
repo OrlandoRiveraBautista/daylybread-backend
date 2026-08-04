@@ -12,7 +12,8 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { ValidateUser, RequireAuth } from "../../../middlewares/userAuth";
+import { omitUndefined } from "../../../utility";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import path from "path";
@@ -332,19 +333,13 @@ export class SongResolver {
     return { results: songs };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SongResponse)
   async createSong(
     @Arg("options", () => SongInput) options: SongInput,
     @Ctx() { em, request }: MyContext
   ): Promise<SongResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -355,7 +350,7 @@ export class SongResolver {
     }
 
     const song = em.create(Song, {
-      ...options,
+      ...(omitUndefined({ ...options }) as SongInput),
       author: user,
     });
 
@@ -371,20 +366,13 @@ export class SongResolver {
     return { results: song };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SongResponse)
   async updateSong(
     @Arg("id") id: string,
     @Arg("options", () => SongInput) options: SongInput,
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em }: MyContext
   ): Promise<SongResponse> {
-    const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const song = await em.findOne(Song, { _id: new ObjectId(id) });
 
@@ -399,7 +387,7 @@ export class SongResolver {
     // Any authenticated user may update songs (shared library / collaboration).
 
     try {
-      em.assign(song, options);
+      em.assign(song, omitUndefined({ ...options }));
       await em.persistAndFlush(song);
       await em.populate(song, ["author"]);
     } catch (err) {
@@ -412,19 +400,13 @@ export class SongResolver {
     return { results: song };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SongResponse)
   async deleteSong(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<SongResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const song = await em.findOne(Song, { _id: new ObjectId(id) });
 

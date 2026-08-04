@@ -15,7 +15,7 @@ import {
 } from "type-graphql";
 import { MyContext } from "../../types";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { ValidateUser } from "../../middlewares/userAuth";
+import { RequireAuth } from "../../middlewares/userAuth";
 import { User } from "../../entities/User";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { AI_CONFIG } from "../../misc/ai/config";
@@ -577,7 +577,7 @@ export class SermonAIResolver {
   /**
    * Generate AI-assisted content for sermon writing
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SermonAIResponse)
   async generateSermonContent(
     @Arg("input") input: SermonAIInput,
@@ -585,10 +585,6 @@ export class SermonAIResolver {
   ): Promise<SermonAIResponse> {
     try {
       const req = context.request as any;
-      if (!req.userId) {
-        return { errors: [{ message: "User authentication required" }] };
-      }
-
       const user = await context.em.findOne(User, {
         _id: new ObjectId(req.userId),
       });
@@ -836,7 +832,7 @@ export class SermonAIResolver {
   /**
    * Generate AI-assisted content with streaming support
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => Boolean)
   async streamSermonContent(
     @Arg("input") input: SermonAIInput,
@@ -856,14 +852,6 @@ export class SermonAIResolver {
 
       const streamTopic = `SERMON_AI_STREAM_${input.sessionId}`;
       const req = context.request as any;
-      if (!req.userId) {
-        await pubsub.publish(
-          streamTopic,
-          "[ERROR] User authentication required",
-        );
-        return false;
-      }
-
       const user = await context.em.findOne(User, {
         _id: new ObjectId(req.userId),
       });

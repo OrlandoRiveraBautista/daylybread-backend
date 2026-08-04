@@ -13,7 +13,8 @@ import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { ValidateUser } from "../../middlewares/userAuth";
+import { RequireAuth } from "../../middlewares/userAuth";
+import { omitUndefined } from "../../utility";
 
 /**
  * Input type for creating or updating a sermon
@@ -63,21 +64,10 @@ export class SermonResolver {
   /**
    * Retrieves all sermons for the authenticated user.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => SermonsResponse)
   async getSermons(@Ctx() { em, request }: MyContext): Promise<SermonsResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const sermons = await em.find(
       Sermon,
@@ -96,26 +86,17 @@ export class SermonResolver {
   /**
    * Retrieves a single sermon by ID.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => SermonResponse)
   async getSermon(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<SermonResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
-
-    const sermon = await em.findOne(Sermon, { _id: new ObjectId(id) });
+    const sermon = await em.findOne(Sermon, {
+      _id: new ObjectId(id),
+      author: req.userId,
+    });
 
     if (!sermon) {
       return {
@@ -136,24 +117,13 @@ export class SermonResolver {
   /**
    * Creates a new sermon for the authenticated user.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SermonResponse)
   async createSermon(
     @Arg("options", () => SermonInput) options: SermonInput,
     @Ctx() { em, request }: MyContext
   ): Promise<SermonResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -195,7 +165,7 @@ export class SermonResolver {
   /**
    * Updates an existing sermon.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SermonResponse)
   async updateSermon(
     @Arg("id") id: string,
@@ -203,19 +173,10 @@ export class SermonResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<SermonResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
-
-    const sermon = await em.findOne(Sermon, { _id: new ObjectId(id) });
+    const sermon = await em.findOne(Sermon, {
+      _id: new ObjectId(id),
+      author: req.userId,
+    });
 
     if (!sermon) {
       return {
@@ -229,11 +190,14 @@ export class SermonResolver {
     }
 
     try {
-      em.assign(sermon, {
-        title: options.title,
-        content: options.content,
-        status: options.status || sermon.status,
-      });
+      em.assign(
+        sermon,
+        omitUndefined({
+          title: options.title,
+          content: options.content,
+          status: options.status || sermon.status,
+        })
+      );
 
       await em.persistAndFlush(sermon);
       await em.populate(sermon, ["author"]);
@@ -255,26 +219,17 @@ export class SermonResolver {
   /**
    * Deletes a sermon.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SermonResponse)
   async deleteSermon(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<SermonResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
-
-    const sermon = await em.findOne(Sermon, { _id: new ObjectId(id) });
+    const sermon = await em.findOne(Sermon, {
+      _id: new ObjectId(id),
+      author: req.userId,
+    });
 
     if (!sermon) {
       return {

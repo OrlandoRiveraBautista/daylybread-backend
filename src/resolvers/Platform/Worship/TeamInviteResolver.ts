@@ -15,7 +15,7 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { ValidateUser, RequireAuth } from "../../../middlewares/userAuth";
 import { EmailService } from "../../../services/EmailService";
 import {
   Notification,
@@ -44,19 +44,13 @@ class TeamInvitesResponse {
 
 @Resolver()
 export class TeamInviteResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => TeamInvitesResponse)
   async getTeamInvites(
     @Arg("teamId") teamId: string,
     @Ctx() { em, request }: MyContext
   ): Promise<TeamInvitesResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     // Verify user is the team author or a member
     const team = await em.findOne(WorshipTeam, { _id: new ObjectId(teamId) }, { populate: ["author"] });
@@ -87,18 +81,12 @@ export class TeamInviteResolver {
     return { results: invites };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => TeamInvitesResponse)
   async getMyInvites(
     @Ctx() { em, request }: MyContext
   ): Promise<TeamInvitesResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const invites = await em.find(
       TeamInvite,
@@ -150,19 +138,13 @@ export class TeamInviteResolver {
     return { results: invite };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamInviteResponse)
   async sendTeamInvite(
     @Arg("options", () => TeamInviteInput) options: TeamInviteInput,
     @Ctx() { em, request }: MyContext
   ): Promise<TeamInviteResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const invitedByUser = await em.findOne(User, { _id: req.userId });
     if (!invitedByUser) {
@@ -268,7 +250,7 @@ export class TeamInviteResolver {
     return { results: invite };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamInviteResponse)
   async respondToInvite(
     @Arg("inviteId") inviteId: string,
@@ -276,12 +258,6 @@ export class TeamInviteResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<TeamInviteResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const invite = await em.findOne(
       TeamInvite,
@@ -317,8 +293,27 @@ export class TeamInviteResolver {
       };
     }
 
+    await em.populate(invite, ["invitedUser"]);
+    const inviteeMatchesUser =
+      (invite.invitedUser &&
+        invite.invitedUser._id.toString() === user._id.toString()) ||
+      (invite.email &&
+        invite.email.toLowerCase() === user.email.toLowerCase());
+
+    if (!inviteeMatchesUser) {
+      return {
+        errors: [
+          {
+            field: "TeamInvite",
+            message: "This invite is not addressed to your account",
+          },
+        ],
+      };
+    }
+
     if (accept) {
       invite.status = InviteStatus.ACCEPTED;
+      invite.invitedUser = user;
 
       // Create the TeamMember record
       const member = em.create(TeamMember, {
@@ -354,7 +349,7 @@ export class TeamInviteResolver {
     return { results: invite };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamInviteResponse)
   async acceptInviteByToken(
     @Arg("token") token: string,
@@ -389,17 +384,32 @@ export class TeamInviteResolver {
     }
 
     // User must be logged in to accept
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "Please sign up or log in to accept this invite" }],
-      };
-    }
-
     const user = await em.findOne(User, { _id: req.userId });
     if (!user) {
       return {
         errors: [{ field: "User", message: "User not found" }],
       };
+    }
+
+    await em.populate(invite, ["invitedUser"]);
+    // If the invite targets a specific user/email, only that account may accept.
+    // Open link invites (no invitee) can be accepted by any authenticated user with the token.
+    if (invite.invitedUser || invite.email) {
+      const inviteeMatchesUser =
+        (invite.invitedUser &&
+          invite.invitedUser._id.toString() === user._id.toString()) ||
+        (invite.email &&
+          invite.email.toLowerCase() === user.email.toLowerCase());
+      if (!inviteeMatchesUser) {
+        return {
+          errors: [
+            {
+              field: "TeamInvite",
+              message: "This invite is not addressed to your account",
+            },
+          ],
+        };
+      }
     }
 
     invite.status = InviteStatus.ACCEPTED;
@@ -454,19 +464,13 @@ export class TeamInviteResolver {
     return { results: invite };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamInviteResponse)
   async resendTeamInvite(
     @Arg("inviteId") inviteId: string,
     @Ctx() { em, request }: MyContext
   ): Promise<TeamInviteResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const invite = await em.findOne(
       TeamInvite,
@@ -531,19 +535,13 @@ export class TeamInviteResolver {
     return { results: invite };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => TeamInviteResponse)
   async cancelTeamInvite(
     @Arg("inviteId") inviteId: string,
     @Ctx() { em, request }: MyContext
   ): Promise<TeamInviteResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const invite = await em.findOne(TeamInvite, { _id: new ObjectId(inviteId) }, { populate: ["team"] });
 

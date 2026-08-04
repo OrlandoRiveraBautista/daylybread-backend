@@ -36,6 +36,22 @@ export const generateObjectIdFromString = (string: string) => {
 };
 
 /**
+ * Drop keys whose value is `undefined` so MikroORM `em.assign` won't throw
+ * on omitted GraphQL input fields.
+ */
+export const omitUndefined = <T extends Record<string, unknown>>(
+  obj: T
+): { [K in keyof T]?: Exclude<T[K], undefined> } => {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result as { [K in keyof T]?: Exclude<T[K], undefined> };
+};
+
+/**
  * Function to transform underscore keys to camelCase
  */
 export const underscoreToCamelCase = (obj: any): any => {
