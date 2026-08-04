@@ -13,7 +13,7 @@ import { TeamMember } from "../../../entities/Worship/TeamMember";
 import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
 
 @ObjectType()
 class ServiceAssignmentResponse {
@@ -26,19 +26,13 @@ class ServiceAssignmentResponse {
 
 @Resolver()
 export class ServiceAssignmentResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => ServiceAssignmentResponse)
   async createServiceAssignment(
     @Arg("options", () => ServiceAssignmentInput) options: ServiceAssignmentInput,
     @Ctx() { em, request }: MyContext
   ): Promise<ServiceAssignmentResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const service = await em.findOne(WorshipService, { _id: new ObjectId(options.serviceId) }, { populate: ["team"] });
     if (!service) {
@@ -96,7 +90,7 @@ export class ServiceAssignmentResolver {
     return { results: assignment };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => ServiceAssignmentResponse)
   async respondToAssignment(
     @Arg("assignmentId") assignmentId: string,
@@ -104,12 +98,6 @@ export class ServiceAssignmentResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<ServiceAssignmentResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const assignment = await em.findOne(
       ServiceAssignment,
@@ -145,19 +133,13 @@ export class ServiceAssignmentResolver {
     return { results: assignment };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => ServiceAssignmentResponse)
   async removeServiceAssignment(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<ServiceAssignmentResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const assignment = await em.findOne(ServiceAssignment, { _id: new ObjectId(id) }, { populate: ["service", "service.team"] });
 

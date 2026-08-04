@@ -19,6 +19,7 @@ import { User } from "../entities/User";
 /* Utilities */
 import { createTokens } from "../auth";
 import { addTime } from "../utility";
+import { RequireAuth } from "../middlewares/userAuth";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -284,16 +285,10 @@ export class AuthResolver {
    * This route can be used to invalidate all tokens in any browser
    * Good use case is when a user has reset their password
    */
+  @RequireAuth()
   @Mutation(() => Boolean)
   async invalidateTokens(@Ctx() { em, request }: MyContext): Promise<boolean> {
-    // since I wil be using a non explicit value from request (userId)
-    // I will declare a local req as any
     const req = request as any;
-
-    // check to see if the header was set from the middleware
-    if (!req.userId) {
-      return false;
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 

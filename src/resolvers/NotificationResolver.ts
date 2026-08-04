@@ -14,7 +14,7 @@ import {
 import { PubSubEngine } from "graphql-subscriptions";
 import { MyContext } from "../types";
 import { FieldError } from "../entities/Errors/FieldError";
-import { ValidateUser } from "../middlewares/userAuth";
+import { ValidateUser, RequireAuth } from "../middlewares/userAuth";
 import {
   Notification,
   UserNotificationSettings,
@@ -152,19 +152,13 @@ export class NotificationResolver {
   }
 
   // Get user's notification settings
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => NotificationSettingsResponse)
   async getUserNotificationSettings(
     @Ctx() context: MyContext
   ): Promise<NotificationSettingsResponse> {
     try {
       const req = context.request as any;
-      if (!req.userId) {
-        return {
-          errors: [{ message: "User authentication required" }],
-        };
-      }
-
       const user =
         (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
         undefined;
@@ -195,7 +189,7 @@ export class NotificationResolver {
   }
 
   // Update user's notification settings
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => NotificationSettingsResponse)
   async updateNotificationSettings(
     @Arg("input") input: NotificationSettingsInput,
@@ -203,12 +197,6 @@ export class NotificationResolver {
   ): Promise<NotificationSettingsResponse> {
     try {
       const req = context.request as any;
-      if (!req.userId) {
-        return {
-          errors: [{ message: "User authentication required" }],
-        };
-      }
-
       const user =
         (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
         undefined;
@@ -294,7 +282,7 @@ export class NotificationResolver {
   }
 
   // Schedule a unified notification
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => ScheduleNotificationResponse)
   async scheduleMoodNotification(
     @Arg("input") input: ScheduleNotificationInput,
@@ -302,12 +290,6 @@ export class NotificationResolver {
   ): Promise<ScheduleNotificationResponse> {
     try {
       const req = context.request as any;
-      if (!req.userId) {
-        return {
-          errors: [{ message: "User authentication required" }],
-        };
-      }
-
       const user =
         (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
         undefined;
@@ -530,14 +512,11 @@ export class NotificationResolver {
   }
 
   // Test sending a push notification
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => Boolean)
   async testPushNotification(@Ctx() context: MyContext): Promise<boolean> {
     try {
       const req = context.request as any;
-      if (!req.userId) {
-        return false;
-      }
 
       // Create a test notification
       const notification = new Notification();

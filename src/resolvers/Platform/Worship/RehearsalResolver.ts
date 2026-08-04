@@ -14,7 +14,8 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
+import { omitUndefined } from "../../../utility";
 
 @ObjectType()
 class RehearsalResponse {
@@ -36,7 +37,7 @@ class RehearsalsResponse {
 
 @Resolver()
 export class RehearsalResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => RehearsalsResponse)
   async getRehearsals(
     @Arg("teamId", { nullable: true }) teamId: string,
@@ -44,12 +45,6 @@ export class RehearsalResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<RehearsalsResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const filter: any = { author: req.userId };
     if (teamId) {
@@ -68,23 +63,16 @@ export class RehearsalResolver {
     return { results: rehearsals };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => RehearsalResponse)
   async getRehearsal(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<RehearsalResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
     const rehearsal = await em.findOne(
       Rehearsal,
-      { _id: new ObjectId(id) },
+      { _id: new ObjectId(id), author: req.userId },
       { populate: ["team", "author", "service"] }
     );
 
@@ -97,19 +85,13 @@ export class RehearsalResolver {
     return { results: rehearsal };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => RehearsalResponse)
   async createRehearsal(
     @Arg("options", () => RehearsalInput) options: RehearsalInput,
     @Ctx() { em, request }: MyContext
   ): Promise<RehearsalResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
     if (!user) {
@@ -154,7 +136,7 @@ export class RehearsalResolver {
     return { results: rehearsal };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => RehearsalResponse)
   async updateRehearsal(
     @Arg("id") id: string,
@@ -162,14 +144,10 @@ export class RehearsalResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<RehearsalResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
-    const rehearsal = await em.findOne(Rehearsal, { _id: new ObjectId(id) });
+    const rehearsal = await em.findOne(Rehearsal, {
+      _id: new ObjectId(id),
+      author: req.userId,
+    });
     if (!rehearsal) {
       return {
         errors: [{ field: "Rehearsal", message: "Rehearsal not found" }],
@@ -191,13 +169,16 @@ export class RehearsalResolver {
     }
 
     try {
-      em.assign(rehearsal, {
-        team,
-        service,
-        date: new Date(options.date),
-        notes: options.notes,
-        songIds: options.songIds,
-      });
+      em.assign(
+        rehearsal,
+        omitUndefined({
+          team,
+          service,
+          date: new Date(options.date),
+          notes: options.notes,
+          songIds: options.songIds,
+        })
+      );
       await em.persistAndFlush(rehearsal);
       await em.populate(rehearsal, ["team", "author", "service"]);
     } catch (err) {
@@ -210,21 +191,17 @@ export class RehearsalResolver {
     return { results: rehearsal };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => RehearsalResponse)
   async deleteRehearsal(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<RehearsalResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
-    const rehearsal = await em.findOne(Rehearsal, { _id: new ObjectId(id) });
+    const rehearsal = await em.findOne(Rehearsal, {
+      _id: new ObjectId(id),
+      author: req.userId,
+    });
     if (!rehearsal) {
       return {
         errors: [{ field: "Rehearsal", message: "Rehearsal not found" }],

@@ -10,7 +10,7 @@ import {
 import { z } from "zod";
 import { MyContext } from "../types";
 import { FieldError } from "../entities/Errors/FieldError";
-import { ValidateUser } from "../middlewares/userAuth";
+import { ValidateUser, RequireAuth } from "../middlewares/userAuth";
 import {
   ChatPromptTemplate,
   HumanMessagePromptTemplate,
@@ -99,7 +99,7 @@ export class MoodResponse {
 
 @Resolver()
 export class MoodResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => MoodResponse)
   async getMoodBasedVerse(
     @Arg("input") input: MoodRequestInput,
@@ -128,10 +128,6 @@ export class MoodResolver {
       }
 
       const req = context.request as any;
-      if (!req.userId) {
-        return { errors: [{ message: "User authentication required" }] };
-      }
-
       const user =
         (await context.em.findOne(User, { _id: new ObjectId(req.userId) })) ??
         undefined;

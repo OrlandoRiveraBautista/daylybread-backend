@@ -14,7 +14,8 @@ import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { ValidateUser } from "../../middlewares/userAuth";
+import { RequireAuth } from "../../middlewares/userAuth";
+import { omitUndefined } from "../../utility";
 
 // Admin user ID that has access to admin operations
 const SUDO_ADMIN_USER_ID = "65239e9380cfeb07c8fb0145";
@@ -111,23 +112,12 @@ export class HomeScreenResolver {
   /**
    * Retrieves all HomeScreens for the authenticated user.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => HomeScreensResponse)
   async getHomeScreensByOwner(
     @Ctx() { em, request }: MyContext,
   ): Promise<HomeScreensResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const homeScreens = await em.find(
       HomeScreen,
@@ -142,24 +132,13 @@ export class HomeScreenResolver {
    * Retrieves all HomeScreens for a specific user by ID.
    * Only accessible by sudo admin users.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => HomeScreensResponse)
   async getHomeScreensByOwnerId(
     @Arg("ownerId") ownerId: string,
     @Ctx() { em, request }: MyContext,
   ): Promise<HomeScreensResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     // Check if user is sudo admin
     if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
@@ -186,24 +165,13 @@ export class HomeScreenResolver {
   /**
    * Creates a new HomeScreen for the authenticated user.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => HomeScreenResponse)
   async createHomeScreen(
     @Arg("options", () => HomeScreenInput) options: HomeScreenInput,
     @Ctx() { em, request }: MyContext,
   ): Promise<HomeScreenResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -222,7 +190,7 @@ export class HomeScreenResolver {
     const shareableLink = this.generateUniqueLink();
 
     const homeScreen = em.create(HomeScreen, {
-      ...options,
+      ...(omitUndefined({ ...options }) as HomeScreenInput),
       owner: user,
       shareableLink,
       views: 0,
@@ -247,7 +215,7 @@ export class HomeScreenResolver {
   /**
    * Updates an existing HomeScreen.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => HomeScreenResponse)
   async updateHomeScreen(
     @Arg("id", () => String) id: string,
@@ -255,17 +223,6 @@ export class HomeScreenResolver {
     @Ctx() { em, request }: MyContext,
   ): Promise<HomeScreenResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const homeScreen = await em.findOne(HomeScreen, { _id: new ObjectId(id) });
     if (!homeScreen) {
@@ -312,7 +269,7 @@ export class HomeScreenResolver {
     }
 
     try {
-      em.assign(homeScreen, options);
+      em.assign(homeScreen, omitUndefined({ ...options }));
       await em.persistAndFlush(homeScreen);
     } catch (err) {
       return {
@@ -331,24 +288,13 @@ export class HomeScreenResolver {
   /**
    * Deletes a HomeScreen.
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => HomeScreenResponse)
   async deleteHomeScreen(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext,
   ) {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const homeScreen = await em.findOne(HomeScreen, { _id: new ObjectId(id) });
 

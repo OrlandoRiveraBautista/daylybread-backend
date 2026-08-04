@@ -8,7 +8,8 @@ import {
   Resolver,
   ObjectType,
 } from "type-graphql";
-import { ValidateUser } from "../middlewares/userAuth";
+import { RequireAuth } from "../middlewares/userAuth";
+import { omitUndefined } from "../utility";
 import { MyContext } from "../types";
 import { User } from "../entities/User";
 import {
@@ -65,24 +66,13 @@ export class BibleInteractionInput {
 
 @Resolver()
 export class BibleInteractionResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => BibleInteractionResponse)
   async createInteraction(
     @Arg("options") options: BibleInteractionInput,
     @Ctx() { em, request }: MyContext
   ): Promise<BibleInteractionResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -97,7 +87,7 @@ export class BibleInteractionResolver {
     }
 
     const interaction = em.create(BibleInteraction, {
-      ...options,
+      ...(omitUndefined({ ...options }) as BibleInteractionInput),
       user,
     });
 
@@ -110,7 +100,7 @@ export class BibleInteractionResolver {
     return { results: interaction };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => GetBibleInteractionsResponse)
   async getMyInteractions(
     @Arg("type", () => InteractionType, { nullable: true })
@@ -143,14 +133,16 @@ export class BibleInteractionResolver {
     return { results: interactions };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => BibleInteractionResponse)
   async getInteraction(
     @Arg("id") id: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, request }: MyContext
   ): Promise<BibleInteractionResponse> {
+    const req = request as any;
     const interaction = await em.findOne(BibleInteraction, {
       _id: new ObjectId(id),
+      user: req.userId,
     });
 
     if (!interaction) {
@@ -166,7 +158,7 @@ export class BibleInteractionResolver {
     return { results: interaction };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => BibleInteractionResponse)
   async updateInteraction(
     @Arg("id") id: string,
@@ -174,17 +166,6 @@ export class BibleInteractionResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<BibleInteractionResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const interaction = await em.findOne(BibleInteraction, {
       _id: new ObjectId(id),
@@ -203,9 +184,7 @@ export class BibleInteractionResolver {
     }
 
     try {
-      em.assign(interaction, {
-        ...options,
-      });
+      em.assign(interaction, omitUndefined({ ...options }));
       await em.persistAndFlush(interaction);
     } catch (err) {
       throw err;
@@ -214,17 +193,13 @@ export class BibleInteractionResolver {
     return { results: interaction };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => Boolean)
   async deleteInteraction(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<boolean> {
     const req = request as any;
-
-    if (!req.userId) {
-      throw new Error("User not authenticated");
-    }
 
     const interaction = await em.findOne(BibleInteraction, {
       _id: new ObjectId(id),

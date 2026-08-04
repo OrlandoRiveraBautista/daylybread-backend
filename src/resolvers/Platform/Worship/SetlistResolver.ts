@@ -10,12 +10,53 @@ import {
 import { Setlist, SetlistInput } from "../../../entities/Worship/Setlist";
 import { SetlistItem, SetlistItemInput } from "../../../entities/Worship/SetlistItem";
 import { WorshipService } from "../../../entities/Worship/WorshipService";
+import { WorshipTeam } from "../../../entities/Worship/WorshipTeam";
 import { Song } from "../../../entities/Worship/Song";
 import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
+import { omitUndefined } from "../../../utility";
+import { TeamMember } from "../../../entities/Worship/TeamMember";
+import { EntityManager } from "@mikro-orm/core";
+
+async function canManageSetlist(
+  em: EntityManager,
+  setlist: Setlist,
+  userId: any
+): Promise<boolean> {
+  await em.populate(setlist, ["author", "service", "service.author", "service.team"]);
+  if (setlist.author?._id?.equals?.(userId) || setlist.author?._id?.toString() === userId?.toString()) {
+    return true;
+  }
+  if (
+    setlist.service?.author?._id?.equals?.(userId) ||
+    setlist.service?.author?._id?.toString() === userId?.toString()
+  ) {
+    return true;
+  }
+  const teamId = setlist.service?.team?._id;
+  if (!teamId) return false;
+
+  const team = await em.findOne(
+    WorshipTeam,
+    { _id: teamId },
+    { populate: ["author"] }
+  );
+  if (
+    team?.author?._id?.equals?.(userId) ||
+    team?.author?._id?.toString() === userId?.toString()
+  ) {
+    return true;
+  }
+
+  const membership = await em.findOne(TeamMember, {
+    team: teamId,
+    user: userId,
+  });
+  return !!membership;
+}
 
 @ObjectType()
 class SetlistResponse {
@@ -37,19 +78,12 @@ class SetlistItemResponse {
 
 @Resolver()
 export class SetlistResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => SetlistResponse)
   async getSetlist(
     @Arg("serviceId") serviceId: string,
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em }: MyContext
   ): Promise<SetlistResponse> {
-    const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const setlist = await em.findOne(
       Setlist,
@@ -66,19 +100,13 @@ export class SetlistResolver {
     return { results: setlist };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SetlistResponse)
   async createSetlist(
     @Arg("options", () => SetlistInput) options: SetlistInput,
     @Ctx() { em, request }: MyContext
   ): Promise<SetlistResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
     if (!user) {
@@ -87,10 +115,40 @@ export class SetlistResolver {
       };
     }
 
-    const service = await em.findOne(WorshipService, { _id: new ObjectId(options.serviceId) });
+    const service = await em.findOne(
+      WorshipService,
+      { _id: new ObjectId(options.serviceId) },
+      { populate: ["author", "team"] }
+    );
     if (!service) {
       return {
         errors: [{ field: "WorshipService", message: "Service not found" }],
+      };
+    }
+
+    const team = await em.findOne(
+      WorshipTeam,
+      { _id: service.team._id },
+      { populate: ["author"] }
+    );
+    const isServiceAuthor =
+      service.author._id.equals(req.userId) ||
+      service.author._id.toString() === req.userId.toString();
+    const isTeamOwner =
+      team?.author?._id?.equals?.(req.userId) ||
+      team?.author?._id?.toString() === req.userId.toString();
+    const isMember = await em.findOne(TeamMember, {
+      team: service.team._id,
+      user: req.userId,
+    });
+    if (!isServiceAuthor && !isTeamOwner && !isMember) {
+      return {
+        errors: [
+          {
+            field: "Setlist",
+            message: "You do not have permission to create a setlist for this service",
+          },
+        ],
       };
     }
 
@@ -121,7 +179,7 @@ export class SetlistResolver {
     return { results: setlist };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SetlistItemResponse)
   async addSetlistItem(
     @Arg("setlistId") setlistId: string,
@@ -129,17 +187,20 @@ export class SetlistResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<SetlistItemResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
     const setlist = await em.findOne(Setlist, { _id: new ObjectId(setlistId) });
     if (!setlist) {
       return {
         errors: [{ field: "Setlist", message: "Setlist not found" }],
+      };
+    }
+    if (!(await canManageSetlist(em, setlist, req.userId))) {
+      return {
+        errors: [
+          {
+            field: "Setlist",
+            message: "You do not have permission to modify this setlist",
+          },
+        ],
       };
     }
 
@@ -172,7 +233,7 @@ export class SetlistResolver {
     return { results: item };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SetlistItemResponse)
   async updateSetlistItem(
     @Arg("id") id: string,
@@ -180,17 +241,24 @@ export class SetlistResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<SetlistItemResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
-    const item = await em.findOne(SetlistItem, { _id: new ObjectId(id) });
+    const item = await em.findOne(
+      SetlistItem,
+      { _id: new ObjectId(id) },
+      { populate: ["setlist"] }
+    );
     if (!item) {
       return {
         errors: [{ field: "SetlistItem", message: "Setlist item not found" }],
+      };
+    }
+    if (!(await canManageSetlist(em, item.setlist, req.userId))) {
+      return {
+        errors: [
+          {
+            field: "Setlist",
+            message: "You do not have permission to modify this setlist",
+          },
+        ],
       };
     }
 
@@ -202,13 +270,16 @@ export class SetlistResolver {
     }
 
     try {
-      em.assign(item, {
-        song,
-        order: options.order,
-        key: options.key,
-        bpm: options.bpm,
-        notes: options.notes,
-      });
+      em.assign(
+        item,
+        omitUndefined({
+          song,
+          order: options.order,
+          key: options.key,
+          bpm: options.bpm,
+          notes: options.notes,
+        })
+      );
       await em.persistAndFlush(item);
       await em.populate(item, ["song", "setlist"]);
     } catch (err) {
@@ -221,24 +292,31 @@ export class SetlistResolver {
     return { results: item };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SetlistItemResponse)
   async removeSetlistItem(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<SetlistItemResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
-    const item = await em.findOne(SetlistItem, { _id: new ObjectId(id) });
+    const item = await em.findOne(
+      SetlistItem,
+      { _id: new ObjectId(id) },
+      { populate: ["setlist"] }
+    );
     if (!item) {
       return {
         errors: [{ field: "SetlistItem", message: "Setlist item not found" }],
+      };
+    }
+    if (!(await canManageSetlist(em, item.setlist, req.userId))) {
+      return {
+        errors: [
+          {
+            field: "Setlist",
+            message: "You do not have permission to modify this setlist",
+          },
+        ],
       };
     }
 
@@ -254,7 +332,7 @@ export class SetlistResolver {
     return { results: item };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SetlistResponse)
   async reorderSetlistItems(
     @Arg("setlistId") setlistId: string,
@@ -262,13 +340,6 @@ export class SetlistResolver {
     @Ctx() { em, request }: MyContext
   ): Promise<SetlistResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
     const setlist = await em.findOne(
       Setlist,
       { _id: new ObjectId(setlistId) },
@@ -278,6 +349,16 @@ export class SetlistResolver {
     if (!setlist) {
       return {
         errors: [{ field: "Setlist", message: "Setlist not found" }],
+      };
+    }
+    if (!(await canManageSetlist(em, setlist, req.userId))) {
+      return {
+        errors: [
+          {
+            field: "Setlist",
+            message: "You do not have permission to modify this setlist",
+          },
+        ],
       };
     }
 
@@ -300,24 +381,27 @@ export class SetlistResolver {
     return { results: setlist };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SetlistResponse)
   async deleteSetlist(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<SetlistResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
-
     const setlist = await em.findOne(Setlist, { _id: new ObjectId(id) });
     if (!setlist) {
       return {
         errors: [{ field: "Setlist", message: "Setlist not found" }],
+      };
+    }
+    if (!(await canManageSetlist(em, setlist, req.userId))) {
+      return {
+        errors: [
+          {
+            field: "Setlist",
+            message: "You do not have permission to modify this setlist",
+          },
+        ],
       };
     }
 

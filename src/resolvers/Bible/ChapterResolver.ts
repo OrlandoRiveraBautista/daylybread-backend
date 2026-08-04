@@ -12,7 +12,6 @@ export class ChapterResolver {
     @Arg("bookBibleId", () => String) id: string,
     @Ctx() { em }: MyContext
   ): Promise<BookChapter[] | FieldError> {
-    // find book
     const results = await em.findOne(Book, { bibleId: id });
 
     if (!results) {
@@ -22,19 +21,15 @@ export class ChapterResolver {
       return error;
     }
 
-    // get chapters
-    const chapters = results.chapters;
-
-    return chapters;
+    return results.chapters;
   }
 
-  // Get  a chapter  by bible id
+  // Get a chapter by bible id
   @Query(() => Chapter)
   async getChapter(
     @Arg("bibleId", () => String) id: string,
     @Ctx() { em }: MyContext
   ): Promise<Chapter | FieldError> {
-    // find chapter
     const results = await em.findOne(Chapter, {
       bibleId: id,
     });
@@ -49,15 +44,18 @@ export class ChapterResolver {
     return results;
   }
 
-  // Text search
   @Query(() => [Chapter])
   async searchBible(
     @Arg("search", () => String) search: string,
     @Ctx() { em }: MyContext
-  ): Promise<Chapter[] | FieldError> {
-    // find chapter
+  ): Promise<Chapter[]> {
+    const trimmed = search?.trim();
+    if (!trimmed) {
+      return [];
+    }
+
     const col = em.getCollection(Chapter);
-    const trying = col.aggregate([
+    const cursor = col.aggregate([
       {
         $search: {
           index: "default",
@@ -66,16 +64,14 @@ export class ChapterResolver {
               value: "text",
               multi: "verse_spanish",
             },
-            query: search,
+            query: trimmed,
           },
           highlight: {
             path: "text",
           },
         },
       },
-      {
-        $limit: 10,
-      },
+      { $limit: 10 },
       {
         $project: {
           verse: 1,
@@ -84,29 +80,13 @@ export class ChapterResolver {
           translation: 1,
           chapterNumber: 1,
           bookName: 1,
-          score: {
-            $meta: "searchScore",
-          },
-          highlight: {
-            $meta: "searchHighlights",
-          },
+          score: { $meta: "searchScore" },
+          highlight: { $meta: "searchHighlights" },
         },
       },
     ]);
 
-    console.log(trying);
-
-    const results = em.find(Chapter, {
-      bibleId: "KJV03022",
-    });
-
-    if (!results) {
-      const error: FieldError = {
-        message: "Book could not be found. Please try a different one",
-      };
-      return error;
-    }
-
-    return results;
+    const results = await cursor.toArray();
+    return results as Chapter[];
   }
 }
