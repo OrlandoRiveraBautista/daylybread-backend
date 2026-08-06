@@ -62,7 +62,7 @@ export class AuthResolver {
         errors: [
           {
             field: "Email",
-            message: `No user with email ${options.email} found`,
+            message: "Incorrect email or password. Please try again.",
           },
         ],
       };
@@ -78,7 +78,7 @@ export class AuthResolver {
         errors: [
           {
             field: "Password",
-            message: "Incorrect email or pasword. Please try again.",
+            message: "Incorrect email or password. Please try again.",
           },
         ],
       };
@@ -91,14 +91,14 @@ export class AuthResolver {
       expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
       sameSite: "none",
       secure: true,
-      maxAge: new Date().setDate(new Date().getDate() + 7),
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     reply.cookie("access-token", accessToken, {
       expires: addTime({ date: new Date(), typeOfTime: "minutes", time: 15 }), //expires in 15mins
       sameSite: "none",
       secure: true,
-      maxAge: new Date().setTime(new Date().getTime() + 15 * 60 * 1000),
+      maxAge: 15 * 60 * 1000,
     });
 
     return { user };

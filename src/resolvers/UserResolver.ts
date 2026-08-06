@@ -9,7 +9,7 @@ import { FieldError } from "../entities/Errors/FieldError";
 
 /* Middlewares */
 import { ValidateUser, RequireAuth } from "../middlewares/userAuth";
-import { omitUndefined } from "../utility";
+import { escapeRegExp, omitUndefined } from "../utility";
 
 // Admin user ID that has access to search users
 const SUDO_ADMIN_USER_ID = "65239e9380cfeb07c8fb0145";
@@ -140,7 +140,7 @@ export class UserResolver {
 
     // Search for users matching the search term
     try {
-      const regex = new RegExp(searchTerm, "i");
+      const regex = new RegExp(escapeRegExp(searchTerm), "i");
       const users = await em.find(
         User,
         {

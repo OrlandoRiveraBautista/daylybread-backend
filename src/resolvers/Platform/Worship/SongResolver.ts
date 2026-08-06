@@ -13,7 +13,7 @@ import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { RequireAuth } from "../../../middlewares/userAuth";
-import { omitUndefined } from "../../../utility";
+import { escapeRegExp, omitUndefined } from "../../../utility";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import path from "path";
@@ -343,7 +343,7 @@ export class SongResolver {
     @Arg("searchTerm") searchTerm: string,
     @Ctx() { em }: MyContext
   ): Promise<SongsResponse> {
-    const regex = new RegExp(searchTerm, "i");
+    const regex = new RegExp(escapeRegExp(searchTerm), "i");
     const songs = await em.find(
       Song,
       {
