@@ -3,6 +3,7 @@ import {
   Notification,
   NotificationContentType,
 } from "../entities/Notification";
+import { escapeHtml } from "../utility";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -118,6 +119,9 @@ export class EmailService {
     const baseUrl = (
       process.env.FRONTEND_URL || "https://daylybread.com"
     ).replace(/\/$/, "");
+    const message = escapeHtml(notification.message || "");
+    const title = escapeHtml(notification.title || "");
+    const actionText = escapeHtml(notification.actionText || "");
 
     switch (notification.contentType) {
       case NotificationContentType.TEAM_INVITE:
@@ -126,14 +130,18 @@ export class EmailService {
             <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: ${brand.secondary};">Worship Team</p>
             <h1 style="margin: 0 0 16px; font-size: 26px; font-weight: 800; color: ${brand.text}; line-height: 1.2;">You've been invited! 🎶</h1>
             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: ${brand.textMuted};">
-              ${notification.message}
+              ${message}
             </p>
 
             ${divider()}
 
             <p style="margin: 0 0 4px; font-size: 13px; color: ${brand.textSubtle};">This invite expires in <strong style="color: ${brand.text};">7 days</strong>. Accept it before then to join the team.</p>
 
-            ${ctaButton(notification.actionUrl || `${baseUrl}/worship`, notification.actionText || "View Invite", brand.secondary)}
+            ${ctaButton(
+              escapeHtml(notification.actionUrl || `${baseUrl}/worship`),
+              actionText || "View Invite",
+              brand.secondary,
+            )}
 
             ${divider()}
 
@@ -145,21 +153,25 @@ export class EmailService {
 
       case NotificationContentType.SERVICE_PUBLISHED: {
         const meta = notification.metadata || {};
-        const serviceName: string = meta.serviceName || "an upcoming service";
-        const serviceDate: string = meta.serviceDate || "";
-        const teamName: string = meta.teamName || "";
-        const actionLink = notification.actionUrl
-          ? notification.actionUrl.startsWith("http")
-            ? notification.actionUrl
-            : `${baseUrl}${notification.actionUrl}`
-          : `${baseUrl}/worship/services`;
+        const serviceName = escapeHtml(
+          String(meta.serviceName || "an upcoming service"),
+        );
+        const serviceDate = escapeHtml(String(meta.serviceDate || ""));
+        const teamName = escapeHtml(String(meta.teamName || ""));
+        const actionLink = escapeHtml(
+          notification.actionUrl
+            ? notification.actionUrl.startsWith("http")
+              ? notification.actionUrl
+              : `${baseUrl}${notification.actionUrl}`
+            : `${baseUrl}/worship/services`,
+        );
 
         return {
           html: baseLayout(`
             <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: ${brand.tertiary};">Worship Service</p>
             <h1 style="margin: 0 0 16px; font-size: 26px; font-weight: 800; color: ${brand.text}; line-height: 1.2;">You've been scheduled! 🎵</h1>
             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: ${brand.textMuted};">
-              ${notification.message}
+              ${message}
             </p>
 
             ${divider()}
@@ -194,7 +206,7 @@ export class EmailService {
               }
             </table>
 
-            ${ctaButton(actionLink, notification.actionText || "View Service", brand.tertiary)}
+            ${ctaButton(actionLink, actionText || "View Service", brand.tertiary)}
 
             ${divider()}
 
@@ -211,7 +223,7 @@ export class EmailService {
             <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: ${brand.primary};">Mood Request</p>
             <h1 style="margin: 0 0 16px; font-size: 26px; font-weight: 800; color: ${brand.text}; line-height: 1.2;">Your verse is ready 🙏</h1>
             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: ${brand.textMuted};">
-              ${notification.message}
+              ${message}
             </p>
             ${ctaButton(`${baseUrl}/mood-request`, "Get Your Verse", brand.primary)}
             ${divider()}
@@ -227,7 +239,7 @@ export class EmailService {
             <p style="margin: 0 0 6px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: ${brand.success};">Daily Verse</p>
             <h1 style="margin: 0 0 16px; font-size: 26px; font-weight: 800; color: ${brand.text}; line-height: 1.2;">Today's Word for You 📖</h1>
             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: ${brand.textMuted};">
-              ${notification.message}
+              ${message}
             </p>
             ${ctaButton(`${baseUrl}/daily-verse`, "Read Today's Verse", brand.success)}
           `),
@@ -237,18 +249,20 @@ export class EmailService {
         return {
           html: baseLayout(`
             <h1 style="margin: 0 0 16px; font-size: 26px; font-weight: 800; color: ${brand.text}; line-height: 1.2;">
-              ${notification.title}
+              ${title}
             </h1>
             <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: ${brand.textMuted};">
-              ${notification.message}
+              ${message}
             </p>
             ${
               notification.actionUrl
                 ? ctaButton(
-                    notification.actionUrl.startsWith("http")
-                      ? notification.actionUrl
-                      : `${baseUrl}${notification.actionUrl}`,
-                    notification.actionText || "View",
+                    escapeHtml(
+                      notification.actionUrl.startsWith("http")
+                        ? notification.actionUrl
+                        : `${baseUrl}${notification.actionUrl}`,
+                    ),
+                    actionText || "View",
                     brand.primary,
                   )
                 : ""

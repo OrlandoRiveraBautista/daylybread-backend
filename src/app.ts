@@ -68,7 +68,7 @@ class App {
         schema: graphqlSchema,
         context: async (ctx) => buildWsContext(ctx, orm.em.fork()),
       },
-      wsServer
+      wsServer,
     );
 
     // configure instace of ApolloServer
@@ -106,7 +106,7 @@ class App {
     // Start notification scheduler
     const notificationScheduler = new NotificationScheduler(
       orm.em.fork(),
-      pubSub
+      pubSub,
     );
     notificationScheduler.start();
     console.log("🔔 Notification scheduler started");
@@ -145,7 +145,7 @@ class App {
             ],
             credentials: true,
           },
-        })
+        }),
       )
       .register(cookie, {
         secret: "my-secret", //should be changed to an actual secret
@@ -156,7 +156,7 @@ class App {
     try {
       await this.app.listen({ port: this.port });
       console.log(
-        `🚀 Server ready at http://localhost:${this.port}${this.apolloServer.graphqlPath}`
+        `🚀 Server ready at http://localhost:${this.port}${this.apolloServer.graphqlPath}`,
       );
     } catch (err) {
       console.error(err);

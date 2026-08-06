@@ -17,10 +17,23 @@ export const addTime = ({ date, typeOfTime, time }: IAddTime) => {
       dateCopy.setMinutes(date.getMinutes() + time);
       return dateCopy;
     case "days":
-      dateCopy.setDate(date.getDate() + 7);
+      dateCopy.setDate(date.getDate() + time);
       return dateCopy;
   }
 };
+
+/** Escape special regex characters in user-provided search terms. */
+export const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Escape HTML special characters for safe email template interpolation. */
+export const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 /**
  * Function generates an ObjectId from a string

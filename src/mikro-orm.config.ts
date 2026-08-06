@@ -70,7 +70,7 @@ const config: Parameters<typeof MikroORM.init<MongoDriver>>[0] = {
   type: "mongo",
   dbName: "daylybread",
   clientUrl: process.env.MONGODBCLIENTURL,
-  debug: true,
+  debug: process.env.NODE_ENV !== "production",
   implicitTransactions: true,
 };
 
