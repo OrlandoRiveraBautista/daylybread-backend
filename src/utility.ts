@@ -17,10 +17,23 @@ export const addTime = ({ date, typeOfTime, time }: IAddTime) => {
       dateCopy.setMinutes(date.getMinutes() + time);
       return dateCopy;
     case "days":
-      dateCopy.setDate(date.getDate() + 7);
+      dateCopy.setDate(date.getDate() + time);
       return dateCopy;
   }
 };
+
+/** Escape special regex characters in user-provided search terms. */
+export const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Escape HTML special characters for safe email template interpolation. */
+export const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 /**
  * Function generates an ObjectId from a string
@@ -33,6 +46,22 @@ export const generateObjectIdFromString = (string: string) => {
   const objectId = hash; // Adjust the length as needed
 
   return objectId;
+};
+
+/**
+ * Drop keys whose value is `undefined` so MikroORM `em.assign` won't throw
+ * on omitted GraphQL input fields.
+ */
+export const omitUndefined = <T extends Record<string, unknown>>(
+  obj: T
+): { [K in keyof T]?: Exclude<T[K], undefined> } => {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = value;
+    }
+  }
+  return result as { [K in keyof T]?: Exclude<T[K], undefined> };
 };
 
 /**

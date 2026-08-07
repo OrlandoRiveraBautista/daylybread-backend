@@ -1,7 +1,8 @@
 import { Resolver, Query, Arg, InputType, Field } from "type-graphql";
 import { FieldError } from "../../../entities/Errors/FieldError";
 import { AudioMediaResponse, MediaTimestampResponse } from "./types";
-import BibleBrainService from "../../../services/BibleBrainService";
+import { getBibleBrainService } from "../../../services/BibleBrainService";
+import { toBibleBrainError } from "./error";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -17,71 +18,79 @@ export class AudioMediaArgs {
 }
 
 /**
- * Resolver to get all books for a given bible by bible id
+ * Resolver for Bible Brain audio media and timestamps.
  */
 @Resolver()
 export class MediaResolver {
-  @Query(() => AudioMediaResponse || FieldError)
+  @Query(() => AudioMediaResponse)
   async getAudioMedia(
     @Arg("options", () => AudioMediaArgs) options: AudioMediaArgs
-  ) {
+  ): Promise<AudioMediaResponse | FieldError> {
     if (!options.filesetId) {
-      const error: FieldError = {
+      return {
         message: "Please specify a filesetId",
         field: "filesetId",
       };
-
-      return error;
+    }
+    if (!options.bookId) {
+      return {
+        message: "Please specify bookId",
+        field: "bookId",
+      };
+    }
+    if (options.chapterNumber == null) {
+      return {
+        message: "Please specify chapterNumber",
+        field: "chapterNumber",
+      };
     }
 
-    const service = new BibleBrainService();
+    const service = getBibleBrainService();
 
     try {
-      const data = await service.getMedia(
+      return await service.getMedia(
         options.filesetId,
         options.bookId,
         options.chapterNumber
       );
-      return data;
     } catch (err) {
-      const error: FieldError = {
-        message: err,
-        field: "Calling to get media information from bible brain.",
-      };
-
-      return error;
+      return toBibleBrainError(err, "getAudioMedia");
     }
   }
 
-  @Query(() => MediaTimestampResponse || FieldError)
+  @Query(() => MediaTimestampResponse)
   async getMediaTimestamps(
     @Arg("options", () => AudioMediaArgs) options: AudioMediaArgs
-  ) {
+  ): Promise<MediaTimestampResponse | FieldError> {
     if (!options.filesetId) {
-      const error: FieldError = {
+      return {
         message: "Please specify a filesetId",
         field: "filesetId",
       };
-
-      return error;
+    }
+    if (!options.bookId) {
+      return {
+        message: "Please specify bookId",
+        field: "bookId",
+      };
+    }
+    if (options.chapterNumber == null) {
+      return {
+        message: "Please specify chapterNumber",
+        field: "chapterNumber",
+      };
     }
 
-    const service = new BibleBrainService();
+    const service = getBibleBrainService();
 
     try {
-      const data = await service.getMediaTimestamps(
+      return await service.getMediaTimestamps(
         options.filesetId,
         options.bookId,
         options.chapterNumber
       );
-      return data;
     } catch (err) {
-      const error: FieldError = {
-        message: err,
-        field: "Calling to get media timestamp information from bible brain.",
-      };
-
-      return error;
+      return toBibleBrainError(err, "getMediaTimestamps");
     }
   }
 }

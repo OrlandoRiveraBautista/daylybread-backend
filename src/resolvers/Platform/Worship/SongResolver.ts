@@ -12,10 +12,16 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
+import { escapeRegExp, omitUndefined } from "../../../utility";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import path from "path";
 import puppeteer from "puppeteer";
+import {
+  assertPublicHostname,
+  parseAllowedChordUrl,
+} from "../../../utils/safeChordUrl";
 
 @ObjectType()
 class FetchChordsResponse {
@@ -139,15 +145,8 @@ function extractFromHtml(
       });
     }
 
-  } else {
-    // Generic: pick the largest <pre> block on the page
-    $("pre").each((_i, el) => {
-      const text = $(el).text().trim();
-      if (text.length > rawText.length) rawText = text;
-    });
-    title = $("h1").first().text().trim();
-    artist = $("h2").first().text().trim();
   }
+  // Unknown hosts are rejected before fetch (allowlist in safeChordUrl).
 
   return {
     rawText: rawText.trim() || undefined,
@@ -157,79 +156,150 @@ function extractFromHtml(
   };
 }
 
+const BROWSER_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+/** Sites that return 403 to plain HTTP clients — skip axios and use Puppeteer. */
+const BROWSER_ONLY_HOSTS = ["cifraclub.com", "ultimate-guitar.com"];
+
+const CHORD_SELECTOR_BY_HOST: Record<string, string> = {
+  "lacuerda.net": "pre",
+  "cifraclub.com": "pre",
+  "ultimate-guitar.com": ".js-store",
+};
+
+function hostNeedsBrowser(hostname: string): boolean {
+  return BROWSER_ONLY_HOSTS.some((h) => hostname.includes(h));
+}
+
+function chordFetchErrorMessage(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/Could not find Chrome|chrome was not found/i.test(msg)) {
+    return process.env.NODE_ENV === "production"
+      ? "Chord import is unavailable on the server right now. Use Paste Text, or contact support."
+      : "Chord import needs Chromium. From daylybread-backend run: npx puppeteer browsers install chrome — then restart the API.";
+  }
+  if (/timeout/i.test(msg)) {
+    return "Request timed out. The site may be slow or blocking automated requests — try Paste Text instead.";
+  }
+  if (/403|blocked|denied/i.test(msg)) {
+    return "This site blocked the import. Try Paste Text and copy the chords from your browser.";
+  }
+  return "Failed to fetch the page. Please check the URL and try again.";
+}
+
+async function fetchChordsWithBrowser(
+  url: string,
+  hostname: string
+): Promise<{ rawText?: string; title?: string; artist?: string; key?: string }> {
+  if (!process.env.PUPPETEER_CACHE_DIR) {
+    process.env.PUPPETEER_CACHE_DIR = path.join(process.cwd(), ".cache", "puppeteer");
+  }
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    ...(process.env.PUPPETEER_EXECUTABLE_PATH
+      ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }
+      : {}),
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent(BROWSER_USER_AGENT);
+    await page.setExtraHTTPHeaders({ "Accept-Language": "es-ES,es;q=0.9,en;q=0.8" });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+    const waitFor = Object.entries(CHORD_SELECTOR_BY_HOST).find(([key]) =>
+      hostname.includes(key)
+    )?.[1];
+    if (waitFor) await page.waitForSelector(waitFor, { timeout: 12000 }).catch(() => {});
+
+    return extractFromHtml(await page.content(), hostname);
+  } finally {
+    await browser.close();
+  }
+}
+
 @Resolver()
 export class SongResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => FetchChordsResponse)
   async fetchChordsFromUrl(
     @Arg("url") url: string
   ): Promise<FetchChordsResponse> {
-    // Validate URL before doing anything
-    let hostname: string;
-    try {
-      hostname = new URL(url).hostname.replace("www.", "");
-    } catch {
-      return { errors: [{ field: "url", message: "Invalid URL. Please enter a valid link." }] };
+    const parsed = parseAllowedChordUrl(url);
+    if (!parsed.ok) {
+      return { errors: [{ field: "url", message: parsed.message }] };
     }
 
-    // ── Step 1: fast cheerio path ──────────────────────────────
-    // Only falls through to Puppeteer on a network/fetch error,
-    // not when the page loaded but had no chord content.
-    let cheerioFailed = false;
-    try {
-      const response = await axios.get(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept-Language": "es,en;q=0.9",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-        timeout: 12000,
-      });
-      const result = extractFromHtml(response.data, hostname);
-      if (result.rawText) return result;
-      // Page loaded but no chords found — try Puppeteer in case JS renders them
-    } catch {
-      cheerioFailed = true;
-    }
+    const { url: safeUrl, hostname } = parsed;
 
-    // ── Step 2: Puppeteer fallback (JS-rendered pages) ─────────
-    let browser;
     try {
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-      });
-      const page = await browser.newPage();
-      await page.setUserAgent(
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      );
-      await page.goto(url, { waitUntil: "networkidle2", timeout: 20000 });
-
-      // Wait for the known chord selector per site
-      const selectorMap: Record<string, string> = {
-        "lacuerda.net": "PRE, pre",
-        "cifraclub.com": "pre",
-        "ultimate-guitar.com": ".js-store",
+      await assertPublicHostname(hostname);
+    } catch (err: unknown) {
+      return {
+        errors: [{
+          field: "url",
+          message: err instanceof Error ? err.message : "URL target is not allowed.",
+        }],
       };
-      const waitFor = Object.entries(selectorMap).find(([key]) => hostname.includes(key))?.[1];
-      if (waitFor) await page.waitForSelector(waitFor, { timeout: 8000 }).catch(() => {});
+    }
 
-      const result = extractFromHtml(await page.content(), hostname);
+    // ── Step 1: fast cheerio path (skipped for bot-blocked hosts) ──
+    if (!hostNeedsBrowser(hostname)) {
+      try {
+        const response = await axios.get(safeUrl, {
+          headers: {
+            "User-Agent": BROWSER_USER_AGENT,
+            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            Referer: "https://www.google.com/",
+          },
+          timeout: 12000,
+          maxRedirects: 3,
+          // beforeRedirect is sync in axios — re-check allowlist on each hop.
+          beforeRedirect: (options) => {
+            const next =
+              typeof (options as { href?: string }).href === "string"
+                ? (options as { href: string }).href
+                : typeof options.url === "string"
+                  ? options.url
+                  : "";
+            if (!next) throw new Error("Redirect without URL is not allowed.");
+            const redirected = parseAllowedChordUrl(next);
+            if (!redirected.ok) throw new Error(redirected.message);
+          },
+          validateStatus: (status) => status < 500,
+        });
+        if (response.status >= 400) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const result = extractFromHtml(response.data, hostname);
+        if (result.rawText) return result;
+      } catch (err) {
+        // Allowlisted host but blocked/empty — fall through to Puppeteer.
+        // Do not fall through on allowlist/SSRF failures from redirects.
+        const msg = err instanceof Error ? err.message : "";
+        if (/not allowed|not supported|Only HTTPS|credentials/i.test(msg)) {
+          return { errors: [{ field: "url", message: msg }] };
+        }
+      }
+    }
+
+    // ── Step 2: Puppeteer (required for CifraClub / UG; fallback for allowlisted hosts) ──
+    try {
+      const result = await fetchChordsWithBrowser(safeUrl, hostname);
       if (result.rawText) return result;
 
       return {
         errors: [{
           field: "url",
-          message: "Could not extract chord content from this page. Try copying and pasting the text manually.",
+          message:
+            "Could not extract chord content from this page. Try copying and pasting the text manually.",
         }],
       };
-    } catch (err: any) {
-      const message = err?.message?.includes("timeout") || cheerioFailed
-        ? "Request timed out. The site may be blocking automated requests."
-        : "Failed to fetch the page. Please check the URL and try again.";
-      return { errors: [{ field: "url", message }] };
-    } finally {
-      await browser?.close();
+    } catch (err: unknown) {
+      return { errors: [{ field: "url", message: chordFetchErrorMessage(err) }] };
     }
   }
 
@@ -273,7 +343,7 @@ export class SongResolver {
     @Arg("searchTerm") searchTerm: string,
     @Ctx() { em }: MyContext
   ): Promise<SongsResponse> {
-    const regex = new RegExp(searchTerm, "i");
+    const regex = new RegExp(escapeRegExp(searchTerm), "i");
     const songs = await em.find(
       Song,
       {
@@ -288,19 +358,13 @@ export class SongResolver {
     return { results: songs };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SongResponse)
   async createSong(
     @Arg("options", () => SongInput) options: SongInput,
     @Ctx() { em, request }: MyContext
   ): Promise<SongResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -311,7 +375,7 @@ export class SongResolver {
     }
 
     const song = em.create(Song, {
-      ...options,
+      ...(omitUndefined({ ...options }) as SongInput),
       author: user,
     });
 
@@ -327,20 +391,13 @@ export class SongResolver {
     return { results: song };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SongResponse)
   async updateSong(
     @Arg("id") id: string,
     @Arg("options", () => SongInput) options: SongInput,
-    @Ctx() { em, request }: MyContext
+    @Ctx() { em }: MyContext
   ): Promise<SongResponse> {
-    const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const song = await em.findOne(Song, { _id: new ObjectId(id) });
 
@@ -352,14 +409,10 @@ export class SongResolver {
 
     await em.populate(song, ["author"]);
 
-    if (song.author._id.toString() !== req.userId.toString()) {
-      return {
-        errors: [{ field: "Song", message: "You can only edit songs you created." }],
-      };
-    }
+    // Any authenticated user may update songs (shared library / collaboration).
 
     try {
-      em.assign(song, options);
+      em.assign(song, omitUndefined({ ...options }));
       await em.persistAndFlush(song);
       await em.populate(song, ["author"]);
     } catch (err) {
@@ -372,19 +425,13 @@ export class SongResolver {
     return { results: song };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => SongResponse)
   async deleteSong(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<SongResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [{ field: "User", message: "User cannot be found. Please login first." }],
-      };
-    }
 
     const song = await em.findOne(Song, { _id: new ObjectId(id) });
 

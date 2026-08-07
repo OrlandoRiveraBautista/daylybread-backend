@@ -19,6 +19,7 @@ import { User } from "../entities/User";
 /* Utilities */
 import { createTokens } from "../auth";
 import { addTime } from "../utility";
+import { RequireAuth } from "../middlewares/userAuth";
 
 /* --- Arguments (Args) Object Input Types --- */
 @InputType()
@@ -61,7 +62,7 @@ export class AuthResolver {
         errors: [
           {
             field: "Email",
-            message: `No user with email ${options.email} found`,
+            message: "Incorrect email or password. Please try again.",
           },
         ],
       };
@@ -77,7 +78,7 @@ export class AuthResolver {
         errors: [
           {
             field: "Password",
-            message: "Incorrect email or pasword. Please try again.",
+            message: "Incorrect email or password. Please try again.",
           },
         ],
       };
@@ -90,14 +91,14 @@ export class AuthResolver {
       expires: addTime({ date: new Date(), typeOfTime: "days", time: 7 }), //expires in a week (7days)
       sameSite: "none",
       secure: true,
-      maxAge: new Date().setDate(new Date().getDate() + 7),
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     reply.cookie("access-token", accessToken, {
       expires: addTime({ date: new Date(), typeOfTime: "minutes", time: 15 }), //expires in 15mins
       sameSite: "none",
       secure: true,
-      maxAge: new Date().setTime(new Date().getTime() + 15 * 60 * 1000),
+      maxAge: 15 * 60 * 1000,
     });
 
     return { user };
@@ -284,16 +285,10 @@ export class AuthResolver {
    * This route can be used to invalidate all tokens in any browser
    * Good use case is when a user has reset their password
    */
+  @RequireAuth()
   @Mutation(() => Boolean)
   async invalidateTokens(@Ctx() { em, request }: MyContext): Promise<boolean> {
-    // since I wil be using a non explicit value from request (userId)
-    // I will declare a local req as any
     const req = request as any;
-
-    // check to see if the header was set from the middleware
-    if (!req.userId) {
-      return false;
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 

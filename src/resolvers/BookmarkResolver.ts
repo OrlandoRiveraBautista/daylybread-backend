@@ -7,7 +7,7 @@ import {
   Query,
   Resolver,
 } from "type-graphql";
-import { ValidateUser } from "../middlewares/userAuth";
+import { RequireAuth } from "../middlewares/userAuth";
 import {
   BookmarkResponse,
   GetBookmarkResponse,
@@ -18,8 +18,7 @@ import { User } from "../entities/User";
 import { Bookmark } from "../entities/Bookmark";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { BBVerse } from "../misc/biblebrain/verseTypes";
-
-/* Interfaces */
+import { omitUndefined } from "../utility";
 
 @InputType()
 class BookmarkOptions {
@@ -35,76 +34,42 @@ class BookmarkOptions {
 
 @Resolver()
 export class BookmarkResolver {
-  /* Route to create a new bookmark */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => BookmarkResponse)
   async createBookmark(
     @Arg("options", () => BookmarkOptions) options: BookmarkOptions,
     @Ctx() { em, request }: MyContext
   ): Promise<BookmarkResponse> {
-    // since I wil be using a non explicit value from request (userId)
-    // I will declare a local req as any
     const req = request as any;
-
-    // check to see if the header was set from the middleware
-    if (!req.userId) {
-      const error: UserResponse = {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-
-      return error;
-    }
-
-    // find the user
     const user = await em.findOne(User, { _id: req.userId });
 
-    // throw error if user is not found
     if (!user) {
       const error: UserResponse = {
-        errors: [
-          {
-            message: `No user found, try to log in.`,
-          },
-        ],
+        errors: [{ message: `No user found, try to log in.` }],
       };
       return error;
     }
 
-    const parsersedVerses = options.verses?.map(
-      (verse) => JSON.parse(verse) as BBVerse
-    );
-
-    // create new bookmark object
     const newBookmark = em.create(Bookmark, {
       author: user,
-      bibleId: options.bibleId,
-      note: options.note,
-      newVerses: parsersedVerses,
+      ...omitUndefined({
+        bibleId: options.bibleId,
+        note: options.note,
+        newVerses: options.verses?.map(
+          (verse) => JSON.parse(verse) as BBVerse
+        ),
+      }),
     });
 
-    // try to save the changes
-    try {
-      await em.persistAndFlush(newBookmark);
-    } catch (err) {
-      throw err;
-    }
-
+    await em.persistAndFlush(newBookmark);
     return { results: newBookmark };
   }
 
-  /* Route to get all bookmarks by author */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => GetBookmarkResponse)
   async getMyBookmarks(
     @Ctx() { em, request }: MyContext
   ): Promise<GetBookmarkResponse> {
-    // since I wil be using a non explicit value from request (userId)
-    // I will declare a local req as any
     const req = request as any;
 
     const bookmarks = await em.find(
@@ -115,121 +80,85 @@ export class BookmarkResolver {
 
     if (!bookmarks.length) {
       return {
-        errors: [
-          {
-            message: "No bookmarks found",
-          },
-        ],
+        errors: [{ message: "No bookmarks found" }],
       };
     }
 
     return { results: bookmarks };
   }
 
-  /* Route to update a new bookmark */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => BookmarkResponse)
   async updateBookmark(
     @Arg("options", () => BookmarkOptions) options: BookmarkOptions,
     @Arg("id", () => String) id: string,
     @Ctx() { em, request }: MyContext
   ): Promise<BookmarkResponse> {
-    // since I wil be using a non explicit value from request (userId)
-    // I will declare a local req as any
     const req = request as any;
-
-    // check to see if the header was set from the middleware
-    if (!req.userId) {
-      const error: UserResponse = {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-
-      return error;
-    }
-
-    // find the user
     const user = await em.findOne(User, { _id: req.userId });
 
-    // throw error if user is not found
     if (!user) {
       const error: UserResponse = {
-        errors: [
-          {
-            message: `No user found, try to log in.`,
-          },
-        ],
+        errors: [{ message: `No user found, try to log in.` }],
       };
       return error;
     }
 
-    // find the chosen bookmark
     const chosenBookmark = await em.findOne(Bookmark, {
       _id: new ObjectId(id),
+      author: user,
     });
 
-    // throw error if user is not found
     if (!chosenBookmark) {
-      const error: BookmarkResponse = {
-        errors: [
-          {
-            message: `No user found, try to log in.`,
-          },
-        ],
+      return {
+        errors: [{ message: "Bookmark not found." }],
       };
-      return error;
     }
 
-    try {
-      em.assign(chosenBookmark, options);
-      em.persistAndFlush(chosenBookmark);
-    } catch (err) {
-      throw err;
-    }
+    em.assign(
+      chosenBookmark,
+      omitUndefined({
+        bibleId: options.bibleId,
+        note: options.note,
+        newVerses: options.verses?.map(
+          (verse) => JSON.parse(verse) as BBVerse
+        ),
+      })
+    );
+    await em.persistAndFlush(chosenBookmark);
+    await em.populate(chosenBookmark, ["verses", "author"]);
 
     return { results: chosenBookmark };
   }
 
-  /**
-   * Route to delete a bookmark by id only if a user is authed
-   */
-  @ValidateUser()
-  @Mutation(() => Boolean || BookmarkResponse)
+  @RequireAuth()
+  @Mutation(() => Boolean)
   async deleteBookmarks(
     @Arg("ids", () => [String]) ids: string[],
     @Ctx() { em, request }: MyContext
-  ): Promise<Boolean | BookmarkResponse> {
-    // since I wil be using a non explicit value from request (userId)
-    // I will declare a local req as any
+  ): Promise<boolean> {
     const req = request as any;
+    const objectIds = ids
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
 
-    // check to see if the header was set from the middleware
-    if (!req.userId) {
-      const error: UserResponse = {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-
-      return error;
+    if (!objectIds.length) {
+      return false;
     }
 
-    // loop through id
-    ids.forEach((id) => {
-      // getting the reference of the bookmark
-      const bookmark = em.getReference(Bookmark, id);
-
-      em.remove(bookmark);
+    const bookmarks = await em.find(Bookmark, {
+      _id: { $in: objectIds },
+      author: req.userId,
     });
 
-    em.flush();
+    if (!bookmarks.length) {
+      return false;
+    }
+
+    for (const bookmark of bookmarks) {
+      em.remove(bookmark);
+    }
+    await em.flush();
 
     return true;
   }

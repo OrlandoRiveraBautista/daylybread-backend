@@ -10,9 +10,9 @@ export class Verse {
   @PrimaryKey()
   _id!: ObjectId;
 
-  @Field(() => TranslationField)
-  @Property()
-  translation!: TranslationField;
+  @Field(() => TranslationField, { nullable: true })
+  @Property({ nullable: true })
+  translation?: TranslationField;
 
   @Field(() => String)
   @Property()

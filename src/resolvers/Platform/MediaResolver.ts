@@ -13,7 +13,8 @@ import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { ValidateUser } from "../../middlewares/userAuth";
+import { RequireAuth, ValidateUser } from "../../middlewares/userAuth";
+import { omitUndefined } from "../../utility";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -156,24 +157,13 @@ export class MediaResolver {
    * @param request - The request context
    * @returns A signed URL for the file
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => GetSignedUrlResponse)
   async getGetSignedUrl(
     @Arg("options", () => SignedUrlInput) options: SignedUrlInput,
     @Ctx() { request }: MyContext
   ): Promise<GetSignedUrlResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     try {
       const fileKey = `user-media/${req.userId}/${
@@ -213,24 +203,13 @@ export class MediaResolver {
    * @param request - The request context
    * @returns A signed URL for the file
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => PostSignedUrlResponse)
   async getPostSignedUrl(
     @Arg("options", () => SignedUrlInput) options: SignedUrlInput,
     @Ctx() { request }: MyContext
   ): Promise<PostSignedUrlResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const fileKey = `user-media/${req.userId}/${
       options.purpose
@@ -259,28 +238,40 @@ export class MediaResolver {
   }
 
   /**
-   * Get a media by id
-   * @param id - The id of the media
-   * @param em - The entity manager
-   * @returns The media
+   * Get a media by id (public media, or owned by the authenticated user).
    */
-  @Query(() => Media)
-  async getMedia(@Arg("id") id: string, @Ctx() { em }: MyContext) {
-    return await em.findOne(Media, { _id: new ObjectId(id) });
+  @ValidateUser()
+  @Query(() => Media, { nullable: true })
+  async getMedia(
+    @Arg("id") id: string,
+    @Ctx() { em, request }: MyContext
+  ) {
+    const req = request as any;
+    const media = await em.findOne(Media, { _id: new ObjectId(id) }, {
+      populate: ["owner"],
+    });
+    if (!media) return null;
+    if (media.isPublic) return media;
+    if (req.userId && media.owner._id.toString() === req.userId.toString()) {
+      return media;
+    }
+    return null;
   }
 
   /**
-   * Get media by purpose
-   * @param purpose - The purpose of the media
-   * @param em - The entity manager
-   * @returns The media
+   * Get media by purpose for the authenticated user (plus public media).
    */
+  @RequireAuth()
   @Query(() => [Media])
   async getMediaByPurpose(
     @Arg("purpose") purpose: MediaPurpose,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, request }: MyContext
   ) {
-    return await em.find(Media, { purpose });
+    const req = request as any;
+    return await em.find(Media, {
+      purpose,
+      $or: [{ owner: req.userId }, { isPublic: true }],
+    });
   }
 
   /**
@@ -289,24 +280,13 @@ export class MediaResolver {
    * @param request - The request context
    * @returns The media
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => MediaResponse)
   async createMedia(
     @Arg("options", () => MediaInput) options: MediaInput,
     @Ctx() { em, request }: MyContext
   ): Promise<MediaResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -322,7 +302,7 @@ export class MediaResolver {
     }
 
     const media = em.create(Media, {
-      ...options,
+      ...(omitUndefined({ ...options }) as MediaInput),
       owner: user,
       isPublic: options.isPublic || false,
     });
@@ -350,14 +330,19 @@ export class MediaResolver {
     return { results: media };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => MediaResponse)
   async updateMedia(
     @Arg("options", () => MediaInput) options: MediaInput,
     @Arg("id", () => String) id: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, request }: MyContext
   ): Promise<MediaResponse> {
-    const media = await em.findOne(Media, { _id: new ObjectId(id) });
+    const req = request as any;
+    const media = await em.findOne(
+      Media,
+      { _id: new ObjectId(id), owner: req.userId },
+      { populate: ["owner"] }
+    );
 
     if (!media) {
       return {
@@ -370,7 +355,7 @@ export class MediaResolver {
       };
     }
 
-    em.assign(media, options);
+    em.assign(media, omitUndefined({ ...options }));
 
     try {
       await em.persistAndFlush(media);
@@ -388,13 +373,17 @@ export class MediaResolver {
     return { results: media };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => MediaResponse)
   async deleteMedia(
     @Arg("id") id: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, request }: MyContext
   ): Promise<MediaResponse> {
-    const media = await em.findOne(Media, { _id: new ObjectId(id) });
+    const req = request as any;
+    const media = await em.findOne(Media, {
+      _id: new ObjectId(id),
+      owner: req.userId,
+    });
 
     if (!media) {
       return {
@@ -423,11 +412,33 @@ export class MediaResolver {
     return { results: media };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => MediaUrlResponse)
   async getMediaUrl(
-    @Arg("fileKey", () => String) fileKey: string
+    @Arg("fileKey", () => String) fileKey: string,
+    @Ctx() { em, request }: MyContext
   ): Promise<MediaUrlResponse> {
+    const req = request as any;
+    const userPrefix = `user-media/${req.userId}/`;
+    const ownedKey = fileKey.startsWith(userPrefix);
+    const media = await em.findOne(Media, { fileKey }, { populate: ["owner"] });
+    const canAccess =
+      ownedKey ||
+      (media &&
+        (media.isPublic ||
+          media.owner._id.toString() === req.userId.toString()));
+
+    if (!canAccess) {
+      return {
+        errors: [
+          {
+            field: "Media",
+            message: "You do not have permission to access this media",
+          },
+        ],
+      };
+    }
+
     try {
       const command = new GetObjectCommand({
         Bucket: "daylybread",
@@ -455,12 +466,17 @@ export class MediaResolver {
   }
 
   // Method to get cache stats
+  @RequireAuth()
   @Query(() => String)
   async getMediaCacheInfo(
     @Arg("id", () => String) id: string,
-    @Ctx() { em }: MyContext
+    @Ctx() { em, request }: MyContext
   ): Promise<string> {
-    const media = await em.findOne(Media, { _id: new ObjectId(id) });
+    const req = request as any;
+    const media = await em.findOne(Media, {
+      _id: new ObjectId(id),
+      owner: req.userId,
+    });
 
     if (!media || !media.cache) {
       return "No cache information available";
@@ -479,7 +495,7 @@ export class MediaResolver {
     }, Time Left: ${Math.floor(timeLeft)}s, Duration: ${media.cache.duration}s`;
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => MediaResponse)
   async refreshMediaCache(
     @Arg("id", () => String) id: string,
@@ -488,19 +504,10 @@ export class MediaResolver {
   ): Promise<MediaResponse> {
     try {
       const req = request as any;
-
-      if (!req.userId) {
-        return {
-          errors: [
-            {
-              field: "User",
-              message: "User cannot be found. Please login first.",
-            },
-          ],
-        };
-      }
-
-      const media = await em.findOne(Media, { _id: new ObjectId(id) });
+      const media = await em.findOne(Media, {
+        _id: new ObjectId(id),
+        owner: req.userId,
+      });
 
       if (!media) {
         return {

@@ -8,7 +8,8 @@ import { User, UserUpdateInput } from "../entities/User";
 import { FieldError } from "../entities/Errors/FieldError";
 
 /* Middlewares */
-import { ValidateUser } from "../middlewares/userAuth";
+import { ValidateUser, RequireAuth } from "../middlewares/userAuth";
+import { escapeRegExp, omitUndefined } from "../utility";
 
 // Admin user ID that has access to search users
 const SUDO_ADMIN_USER_ID = "65239e9380cfeb07c8fb0145";
@@ -62,7 +63,7 @@ export class UserResolver {
     return { user };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => UserResponse)
   async updateUser(
     @Arg("options", () => UserUpdateInput) options: UserUpdateInput,
@@ -73,19 +74,6 @@ export class UserResolver {
     const req = request as any;
 
     // check to see if the header was set from the middleware
-    if (!req.userId) {
-      const error: UserResponse = {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-
-      return error;
-    }
-
     // find the user
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -102,10 +90,17 @@ export class UserResolver {
     }
 
     try {
-      em.assign(user, options);
-      em.persistAndFlush(user);
+      em.assign(user, omitUndefined({ ...options }));
+      await em.persistAndFlush(user);
     } catch (e) {
-      console.log(e);
+      console.error("Error updating user:", e);
+      return {
+        errors: [
+          {
+            message: "Failed to update user",
+          },
+        ],
+      };
     }
 
     return { user };
@@ -121,7 +116,7 @@ export class UserResolver {
    * @param request - HTTP request object containing user authentication data
    * @returns Promise<UsersSearchResponse> - The matching users or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => UsersSearchResponse)
   async searchUsers(
     @Arg("searchTerm", () => String) searchTerm: string,
@@ -131,17 +126,6 @@ export class UserResolver {
     const req = request as any;
 
     // Check if user is authenticated
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
-
     // Check if user is sudo admin
     if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
       return {
@@ -156,7 +140,7 @@ export class UserResolver {
 
     // Search for users matching the search term
     try {
-      const regex = new RegExp(searchTerm, "i");
+      const regex = new RegExp(escapeRegExp(searchTerm), "i");
       const users = await em.find(
         User,
         {
@@ -192,7 +176,7 @@ export class UserResolver {
    * @param request - HTTP request object containing user authentication data
    * @returns Promise<UserResponse> - The user or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => UserResponse)
   async getUserById(
     @Arg("userId", () => String) userId: string,
@@ -201,17 +185,6 @@ export class UserResolver {
     const req = request as any;
 
     // Check if user is authenticated
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
-
     // Check if user is sudo admin
     if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
       return {

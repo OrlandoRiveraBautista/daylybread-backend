@@ -19,7 +19,8 @@ import { MyContext } from "../../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../../entities/User";
 import { FieldError } from "../../../entities/Errors/FieldError";
-import { ValidateUser } from "../../../middlewares/userAuth";
+import { RequireAuth } from "../../../middlewares/userAuth";
+import { omitUndefined } from "../../../utility";
 import {
   Notification,
   NotificationContentType,
@@ -61,24 +62,13 @@ class WorshipServicesResponse {
 
 @Resolver()
 export class WorshipServiceResolver {
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => WorshipServicesResponse)
   async getWorshipServices(
     @Arg("teamId", { nullable: true }) teamId: string,
     @Ctx() { em, request }: MyContext,
   ): Promise<WorshipServicesResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     if (teamId) {
       const team = await em.findOne(
@@ -213,24 +203,13 @@ export class WorshipServiceResolver {
     return { results: services };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => WorshipServiceResponse)
   async getWorshipService(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext,
   ): Promise<WorshipServiceResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const service = await em.findOne(
       WorshipService,
@@ -315,24 +294,13 @@ export class WorshipServiceResolver {
     return { results: service };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => WorshipServiceResponse)
   async createWorshipService(
     @Arg("options", () => WorshipServiceInput) options: WorshipServiceInput,
     @Ctx() { em, request }: MyContext,
   ): Promise<WorshipServiceResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
     if (!user) {
@@ -396,7 +364,7 @@ export class WorshipServiceResolver {
     return { results: service };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => WorshipServiceResponse)
   async updateWorshipService(
     @Arg("id") id: string,
@@ -404,17 +372,6 @@ export class WorshipServiceResolver {
     @Ctx() { em, request }: MyContext,
   ): Promise<WorshipServiceResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const service = await em.findOne(
       WorshipService,
@@ -457,13 +414,16 @@ export class WorshipServiceResolver {
     }
 
     try {
-      em.assign(service, {
-        name: options.name,
-        date: parseServiceDateTime(options.date),
-        team,
-        notes: options.notes,
-        status: options.status || service.status,
-      });
+      em.assign(
+        service,
+        omitUndefined({
+          name: options.name,
+          date: parseServiceDateTime(options.date),
+          team,
+          notes: options.notes,
+          status: options.status || service.status,
+        })
+      );
       await em.persistAndFlush(service);
       await em.populate(service, [
         "team",
@@ -487,24 +447,13 @@ export class WorshipServiceResolver {
     return { results: service };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => WorshipServiceResponse)
   async publishWorshipService(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext,
   ): Promise<WorshipServiceResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const service = await em.findOne(
       WorshipService,
@@ -658,24 +607,13 @@ export class WorshipServiceResolver {
     return { results: service };
   }
 
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => WorshipServiceResponse)
   async deleteWorshipService(
     @Arg("id") id: string,
     @Ctx() { em, request }: MyContext,
   ): Promise<WorshipServiceResponse> {
     const req = request as any;
-
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
 
     const service = await em.findOne(
       WorshipService,

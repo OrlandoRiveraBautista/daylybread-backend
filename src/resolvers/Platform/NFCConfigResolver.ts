@@ -14,7 +14,8 @@ import { MyContext } from "../../types";
 import { ObjectId } from "@mikro-orm/mongodb";
 import { User } from "../../entities/User";
 import { FieldError } from "../../entities/Errors/FieldError";
-import { ValidateUser } from "../../middlewares/userAuth";
+import { RequireAuth } from "../../middlewares/userAuth";
+import { omitUndefined } from "../../utility";
 
 // Admin user ID that has access to admin operations
 const SUDO_ADMIN_USER_ID = "65239e9380cfeb07c8fb0145";
@@ -105,11 +106,19 @@ export class NFCConfigResolver {
    * @param em - Database entity manager from GraphQL context
    * @returns Promise<NFCConfigResponse> - The NFC configuration or error details
    */
+  @RequireAuth()
   @Query(() => NFCConfigResponse)
-  async getNFCConfig(@Arg("id") id: string, @Ctx() { em }: MyContext) {
+  async getNFCConfig(
+    @Arg("id") id: string,
+    @Ctx() { em, request }: MyContext
+  ) {
+    const req = request as any;
+    const isAdmin = req.userId?.toString() === SUDO_ADMIN_USER_ID;
     const nfcConfig = await em.findOne(
       NFCConfig,
-      { _id: new ObjectId(id) },
+      isAdmin
+        ? { _id: new ObjectId(id) }
+        : { _id: new ObjectId(id), owner: req.userId },
       { populate: ["owner", "homeScreen"] },
     );
     if (!nfcConfig) {
@@ -128,16 +137,27 @@ export class NFCConfigResolver {
 
   /**
    * Retrieves all NFC configurations (devices) owned by a user.
-   *
-   * @param ownerId - The ObjectId string of the user who owns the NFC configurations
-   * @param em - Database entity manager from GraphQL context
-   * @returns Promise<NFCConfigsResponse> - The NFC configurations or error details
+   * Callers may only query their own devices unless they are sudo admin.
    */
+  @RequireAuth()
   @Query(() => NFCConfigsResponse)
   async getNFCConfigsByOwner(
     @Arg("ownerId") ownerId: string,
-    @Ctx() { em }: MyContext,
+    @Ctx() { em, request }: MyContext,
   ) {
+    const req = request as any;
+    const isAdmin = req.userId?.toString() === SUDO_ADMIN_USER_ID;
+    if (!isAdmin && req.userId?.toString() !== ownerId) {
+      return {
+        errors: [
+          {
+            field: "NFCConfig",
+            message: "You do not have permission to view these devices",
+          },
+        ],
+      };
+    }
+
     const nfcConfigs = await em.find(
       NFCConfig,
       { owner: new ObjectId(ownerId) },
@@ -186,23 +206,13 @@ export class NFCConfigResolver {
    * @param request - HTTP request object containing user authentication data
    * @returns Promise<NFCConfigResponse> - The created NFC configuration or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => NFCConfigResponse)
   async createNFCConfig(
     @Arg("options", () => NFCConfigInput) options: NFCConfigInput,
     @Ctx() { em, request }: MyContext,
   ): Promise<NFCConfigResponse> {
     const req = request as any;
-
-    // check to see if the header was set from the middleware
-    if (!req.userId) {
-      const error: FieldError = {
-        field: "User",
-        message: "User cannot be found. Please login first.",
-      };
-
-      return { errors: [error] };
-    }
 
     const user = await em.findOne(User, { _id: req.userId });
 
@@ -285,17 +295,20 @@ export class NFCConfigResolver {
    * @param em - Database entity manager from GraphQL context
    * @returns Promise<NFCConfigResponse> - The updated NFC configuration or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => NFCConfigResponse)
   async updateNFCConfig(
     @Arg("options", () => NFCConfigInput) options: NFCConfigInput,
     @Arg("id", () => String) id: string,
-    @Ctx() { em }: MyContext,
+    @Ctx() { em, request }: MyContext,
   ): Promise<NFCConfigResponse> {
-    // Check if the NFC config exists
+    const req = request as any;
+    const isAdmin = req.userId?.toString() === SUDO_ADMIN_USER_ID;
     const nfcConfig = await em.findOne(
       NFCConfig,
-      { _id: new ObjectId(id) },
+      isAdmin
+        ? { _id: new ObjectId(id) }
+        : { _id: new ObjectId(id), owner: req.userId },
       { populate: ["owner", "homeScreen"] },
     );
     if (!nfcConfig) {
@@ -329,11 +342,16 @@ export class NFCConfigResolver {
 
     // Update the NFC config
     try {
-      em.assign(nfcConfig, {
-        name: options.name,
-        deviceType: options.deviceType,
-        homeScreen: homeScreen || undefined,
-      });
+      em.assign(
+        nfcConfig,
+        omitUndefined({
+          name: options.name,
+          deviceType: options.deviceType,
+          ...(options.homeScreenId !== undefined
+            ? { homeScreen }
+            : {}),
+        })
+      );
 
       // Save the NFC config
       await em.persistAndFlush(nfcConfig);
@@ -359,12 +377,21 @@ export class NFCConfigResolver {
    * @param em - Database entity manager from GraphQL context
    * @returns Promise<NFCConfigResponse> - The deleted NFC configuration or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => NFCConfigResponse)
-  async deleteNFCConfig(@Arg("id") id: string, @Ctx() { em }: MyContext) {
-    const nfcConfig = await em.findOne(NFCConfig, { _id: new ObjectId(id) });
+  async deleteNFCConfig(
+    @Arg("id") id: string,
+    @Ctx() { em, request }: MyContext
+  ) {
+    const req = request as any;
+    const isAdmin = req.userId?.toString() === SUDO_ADMIN_USER_ID;
+    const nfcConfig = await em.findOne(
+      NFCConfig,
+      isAdmin
+        ? { _id: new ObjectId(id) }
+        : { _id: new ObjectId(id), owner: req.userId }
+    );
 
-    // Check if the NFC config exists
     if (!nfcConfig) {
       return {
         errors: [
@@ -376,7 +403,6 @@ export class NFCConfigResolver {
       };
     }
 
-    // Delete the NFC config
     await em.removeAndFlush(nfcConfig);
 
     return { results: nfcConfig };
@@ -390,17 +416,21 @@ export class NFCConfigResolver {
    * @param em - Database entity manager from GraphQL context
    * @returns Promise<NFCConfigResponse> - The updated NFC configuration or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => NFCConfigResponse)
   async assignHomeScreenToNFCConfig(
     @Arg("id", () => String) id: string,
     @Arg("homeScreenId", () => String, { nullable: true })
     homeScreenId: string | null,
-    @Ctx() { em }: MyContext,
+    @Ctx() { em, request }: MyContext,
   ): Promise<NFCConfigResponse> {
+    const req = request as any;
+    const isAdmin = req.userId?.toString() === SUDO_ADMIN_USER_ID;
     const nfcConfig = await em.findOne(
       NFCConfig,
-      { _id: new ObjectId(id) },
+      isAdmin
+        ? { _id: new ObjectId(id) }
+        : { _id: new ObjectId(id), owner: req.userId },
       { populate: ["owner", "homeScreen"] },
     );
     if (!nfcConfig) {
@@ -417,6 +447,7 @@ export class NFCConfigResolver {
     if (homeScreenId) {
       const homeScreen = await em.findOne(HomeScreen, {
         _id: new ObjectId(homeScreenId),
+        ...(isAdmin ? {} : { owner: req.userId }),
       });
       if (!homeScreen) {
         return {
@@ -431,7 +462,7 @@ export class NFCConfigResolver {
       nfcConfig.homeScreen = homeScreen;
     } else {
       // Unassign the device
-      nfcConfig.homeScreen = undefined;
+      (nfcConfig as any).homeScreen = null;
     }
 
     try {
@@ -506,7 +537,7 @@ export class NFCConfigResolver {
    * @param request - HTTP request object containing user authentication data
    * @returns Promise<NFCConfigResponse> - The created NFC configuration or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Mutation(() => NFCConfigResponse)
   async adminCreateNFCConfig(
     @Arg("options", () => AdminNFCConfigInput) options: AdminNFCConfigInput,
@@ -515,17 +546,6 @@ export class NFCConfigResolver {
     const req = request as any;
 
     // Check if user is authenticated
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
-
     // Check if user is sudo admin
     if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
       return {
@@ -621,7 +641,7 @@ export class NFCConfigResolver {
    * @param request - HTTP request object containing user authentication data
    * @returns Promise<NFCConfigsResponse> - All NFC configurations or error details
    */
-  @ValidateUser()
+  @RequireAuth()
   @Query(() => NFCConfigsResponse)
   async adminGetAllNFCConfigs(
     @Arg("limit", () => Number, { nullable: true }) limit: number = 50,
@@ -630,17 +650,6 @@ export class NFCConfigResolver {
     const req = request as any;
 
     // Check if user is authenticated
-    if (!req.userId) {
-      return {
-        errors: [
-          {
-            field: "User",
-            message: "User cannot be found. Please login first.",
-          },
-        ],
-      };
-    }
-
     // Check if user is sudo admin
     if (req.userId.toString() !== SUDO_ADMIN_USER_ID) {
       return {

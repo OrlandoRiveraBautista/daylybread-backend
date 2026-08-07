@@ -13,6 +13,7 @@ import { User } from "../entities/User";
 import sgMail from "@sendgrid/mail";
 // Push notification imports
 import webpush from "web-push";
+import { escapeHtml } from "../utility";
 
 export class NotificationScheduler {
   private em: EntityManager;
@@ -20,6 +21,7 @@ export class NotificationScheduler {
   private checkInterval: NodeJS.Timeout | null = null;
   private isRunning: boolean = false;
   private lastDailyVerseDate: string | null = null;
+  private lastCleanupDate: string | null = null;
 
   constructor(em: EntityManager, pubSub: PubSubEngine) {
     this.em = em;
@@ -77,6 +79,9 @@ export class NotificationScheduler {
       // Check if we need to generate daily verse notifications (at 6 AM UTC)
       await this.checkAndGenerateDailyVerses(now);
 
+      // Prune old completed/failed notifications once per day
+      await this.checkAndCleanupOldNotifications(now);
+
       // Find all pending notifications that are due
       const dueNotifications = await this.em.find(Notification, {
         status: NotificationStatus.PENDING,
@@ -93,6 +98,15 @@ export class NotificationScheduler {
     } catch (error) {
       console.error("Error processing notifications:", error);
     }
+  }
+
+  private async checkAndCleanupOldNotifications(now: Date): Promise<void> {
+    const today = now.toISOString().slice(0, 10);
+    if (this.lastCleanupDate === today) {
+      return;
+    }
+    this.lastCleanupDate = today;
+    await this.cleanupOldNotifications();
   }
 
   // Check if daily verses need to be generated and generate them
@@ -340,6 +354,12 @@ export class NotificationScheduler {
   // Generate email template based on notification type
   private getEmailTemplate(notification: Notification): { html: string } {
     const baseUrl = process.env.FRONTEND_URL || "https://daylybread.com";
+    const message = escapeHtml(notification.message || "");
+    const title = escapeHtml(notification.title || "");
+    const actionText = escapeHtml(notification.actionText || "View");
+    const actionUrl = notification.actionUrl
+      ? escapeHtml(`${baseUrl}${notification.actionUrl}`)
+      : "";
 
     switch (notification.contentType) {
       case NotificationContentType.MOOD_REQUEST_AVAILABLE:
@@ -347,7 +367,7 @@ export class NotificationScheduler {
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf9fd; padding: 20px; border-radius: 12px;">
               <h2 style="color: #1a1c1e; margin-bottom: 16px;">Your Mood Request is Ready! 🙏</h2>
-              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${notification.message}</p>
+              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${message}</p>
               <div style="margin: 20px 0;">
                 <a href="${baseUrl}/mood-request" 
                    style="background-color: #0060a8; color: white; padding: 12px 24px; 
@@ -367,7 +387,7 @@ export class NotificationScheduler {
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf9fd; padding: 20px; border-radius: 12px;">
               <h2 style="color: #1a1c1e; margin-bottom: 16px;">Your Daily Verse 📖</h2>
-              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${notification.message}</p>
+              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${message}</p>
               <div style="margin: 20px 0;">
                 <a href="${baseUrl}/daily-verse" 
                    style="background-color: #2dd36f; color: white; padding: 12px 24px; 
@@ -383,20 +403,16 @@ export class NotificationScheduler {
         return {
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; background-color: #faf9fd; padding: 20px; border-radius: 12px;">
-              <h2 style="color: #1a1c1e; margin-bottom: 16px;">${
-                notification.title
-              }</h2>
-              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${
-                notification.message
-              }</p>
+              <h2 style="color: #1a1c1e; margin-bottom: 16px;">${title}</h2>
+              <p style="color: #43474e; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">${message}</p>
               ${
-                notification.actionUrl
+                actionUrl
                   ? `
                 <div style="margin: 20px 0;">
-                  <a href="${baseUrl}${notification.actionUrl}" 
+                  <a href="${actionUrl}" 
                      style="background-color: #0060a8; color: white; padding: 12px 24px; 
                             text-decoration: none; border-radius: 12px; display: inline-block; font-weight: 500;">
-                    ${notification.actionText || "View"}
+                    ${actionText}
                   </a>
                 </div>
               `
